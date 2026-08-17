@@ -31,15 +31,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Cache Gradle Packages
-        uses: actions/cache@v4
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          gradle-version: '8.4'
 
       - name: Prepare Signing Keystore
         id: prepare-keystore
@@ -48,10 +43,6 @@ jobs:
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "Decoding release keystore from GitHub Secrets..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/keystore/release.jks
-            echo "KEYSTORE_FILE=keystore/release.jks" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
           else
             echo "Generating automated release keystore with password @RonyX154..."
             keytool -genkey -v -keystore android/keystore/release.jks \
@@ -60,11 +51,11 @@ jobs:
               -storepass "${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" \
               -keypass "${{ secrets.KEY_PASSWORD || '@RonyX154' }}" \
               -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD"
-            echo "KEYSTORE_FILE=keystore/release.jks" >> $GITHUB_ENV
-            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
           fi
+          echo "KEYSTORE_FILE=${GITHUB_WORKSPACE}/android/keystore/release.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
 
       - name: Prepare google-services.json
         run: |
@@ -72,50 +63,57 @@ jobs:
             echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
           fi
 
-      - name: Make Gradle Wrapper Executable
+      - name: Ensure Gradle Wrapper exists
         run: |
-          chmod +x android/gradlew || chmod +x gradlew || true
+          cd android
+          gradle wrapper --gradle-version 8.4
+          chmod +x gradlew || true
 
       - name: Build Release APK
         run: |
           cd android
           ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Verify Release APK
+      - name: Verify and Stage Release APK
+        id: stage-apk
         run: |
-          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            echo "Release APK built successfully at android/app/build/outputs/apk/release/app-release.apk"
-            ls -la android/app/build/outputs/apk/release/app-release.apk
-          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            echo "Found unsigned APK, copying to app-release.apk..."
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/app-release.apk
+          mkdir -p release-output
+          APK_PATH=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            echo "Found APK at: $APK_PATH"
+            cp "$APK_PATH" release-output/app-release.apk
+            ls -la release-output/app-release.apk
+            echo "APK_READY=true" >> $GITHUB_OUTPUT
           else
-            echo "Searching for generated APKs..."
-            find android/app/build -name "*.apk"
+            echo "ERROR: No APK generated!"
+            exit 1
           fi
 
       - name: Upload APK as Workflow Artifact
         uses: actions/upload-artifact@v4
         with:
           name: mailfactory-admin-release-apk
-          path: android/app/build/outputs/apk/release/*.apk
+          path: release-output/app-release.apk
           retention-days: 30
 
       - name: Determine Release Tag
         id: vars
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "TAG_NAME=${{ github.event.inputs.release_version }}" >> $GITHUB_OUTPUT
+            INPUT_TAG="${{ github.event.inputs.release_version }}"
+            TAG_NAME="${INPUT_TAG:-v1.0.0}"
+            echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
           else
-            echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
           fi
 
       - name: Create GitHub Release and Attach APK
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: steps.stage-apk.outputs.APK_READY == 'true'
         with:
           tag_name: ${{ steps.vars.outputs.TAG_NAME }}
-          name: Release ${{ steps.vars.outputs.TAG_NAME }}
+          name: Mail Factory Admin ${{ steps.vars.outputs.TAG_NAME }}
           body: |
             ## 📱 Mail Factory Pro Admin App - Release ${{ steps.vars.outputs.TAG_NAME }}
             
@@ -129,9 +127,9 @@ jobs:
             - Secure device token management and deduplication
             
             ### 📥 Download APK:
-            Download the `app-release.apk` below and install it on your Android device.
+            Download the `app-release.apk` below and install it directly on your Android phone.
           files: |
-            android/app/build/outputs/apk/release/app-release.apk
+            release-output/app-release.apk
           draft: false
           prerelease: false
         env:

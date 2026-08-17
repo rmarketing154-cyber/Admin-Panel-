@@ -23,17 +23,23 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE") ?: "../keystore/release.jks"
+            val envPath = System.getenv("KEYSTORE_FILE")
+            val keystoreFile = if (!envPath.isNullOrEmpty()) file(envPath) else rootProject.file("keystore/release.jks")
             val storePass = System.getenv("KEYSTORE_PASSWORD") ?: "@RonyX154"
             val keyAl = System.getenv("KEY_ALIAS") ?: "mailfactory_admin"
             val keyPass = System.getenv("KEY_PASSWORD") ?: "@RonyX154"
 
-            val keyFile = file(keystoreFile)
-            if (keyFile.exists()) {
-                storeFile = keyFile
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
                 storePassword = storePass
                 keyAlias = keyAl
                 keyPassword = keyPass
+            } else {
+                val debugConfig = getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
             }
         }
     }
@@ -45,10 +51,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            val releaseSigning = signingConfigs.getByName("release")
-            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
-                signingConfig = releaseSigning
-            }
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"
