@@ -31,18 +31,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android Licenses & Install Build Tools
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.4'
+          cache-disabled: true
 
       - name: Prepare Signing Keystore
         id: prepare-keystore
@@ -71,6 +64,10 @@ jobs:
             echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
           fi
 
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
       - name: Generate and Update Gradle Wrapper
         run: |
           cd android
@@ -80,21 +77,21 @@ jobs:
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assemble --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assemble --no-daemon --stacktrace
 
       - name: Verify and Stage Release APK
         id: stage-apk
         run: |
           mkdir -p release-output
-          APK_PATH=$(find android/app/build/outputs/apk -name "*.apk" | head -n 1)
+          APK_PATH=$(find android/app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
             echo "Found APK at: $APK_PATH"
             cp "$APK_PATH" release-output/app-release.apk
             ls -la release-output/app-release.apk
             echo "APK_READY=true" >> $GITHUB_OUTPUT
           else
-            echo "ERROR: No APK generated!"
-            find android/app/build || true
+            echo "ERROR: No APK generated! Searching all directories:"
+            find android/app/build -type f || true
             exit 1
           fi
 
