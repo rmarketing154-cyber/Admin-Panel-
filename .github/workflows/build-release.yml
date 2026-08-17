@@ -77,7 +77,7 @@ jobs:
       - name: Build Release APK
         run: |
           cd android
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace || ./gradlew assembleRelease --no-daemon --stacktrace || ./gradlew assemble --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       - name: Verify and Stage Release APK
         id: stage-apk
