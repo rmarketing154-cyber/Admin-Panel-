@@ -89,6 +89,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.coordinatorlayout)
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.security.crypto)
 
