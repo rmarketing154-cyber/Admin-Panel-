@@ -1,0 +1,53 @@
+{
+  "rules": {
+    "admin_tokens": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$deviceId": {
+        ".validate": "newData.hasChildren(['token', 'deviceId'])"
+      }
+    },
+    "admin_settings": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "settings": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "users": {
+      ".read": true,
+      ".write": true,
+      "$userId": {
+        ".read": true,
+        ".write": true
+      }
+    },
+    "submissions": {
+      ".read": true,
+      ".write": true
+    },
+    "withdraws": {
+      ".read": true,
+      ".write": true
+    },
+    "withdraw_requests": {
+      ".read": true,
+      ".write": true
+    },
+    "reports": {
+      ".read": true,
+      ".write": true
+    },
+    "admin_notifications": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "chats": {
+      ".read": true,
+      ".write": true
+    },
+    ".read": true,
+    ".write": "auth != null"
+  }
+}

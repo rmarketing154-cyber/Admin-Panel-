@@ -1,0 +1,138 @@
+name: Build & Release Android Admin App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release Version (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle Packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Prepare Signing Keystore
+        id: prepare-keystore
+        run: |
+          mkdir -p android/keystore
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Decoding release keystore from GitHub Secrets..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/keystore/release.jks
+            echo "KEYSTORE_FILE=keystore/release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+          else
+            echo "Generating automated release keystore with password @RonyX154..."
+            keytool -genkey -v -keystore android/keystore/release.jks \
+              -alias "${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" \
+              -keypass "${{ secrets.KEY_PASSWORD || '@RonyX154' }}" \
+              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD"
+            echo "KEYSTORE_FILE=keystore/release.jks" >> $GITHUB_ENV
+            echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+          fi
+
+      - name: Prepare google-services.json
+        run: |
+          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
+          fi
+
+      - name: Make Gradle Wrapper Executable
+        run: |
+          chmod +x android/gradlew || chmod +x gradlew || true
+
+      - name: Build Release APK
+        run: |
+          cd android
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Verify Release APK
+        run: |
+          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            echo "Release APK built successfully at android/app/build/outputs/apk/release/app-release.apk"
+            ls -la android/app/build/outputs/apk/release/app-release.apk
+          elif [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            echo "Found unsigned APK, copying to app-release.apk..."
+            cp android/app/build/outputs/apk/release/app-release-unsigned.apk android/app/build/outputs/apk/release/app-release.apk
+          else
+            echo "Searching for generated APKs..."
+            find android/app/build -name "*.apk"
+          fi
+
+      - name: Upload APK as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mailfactory-admin-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
+
+      - name: Determine Release Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG_NAME=${{ github.event.inputs.release_version }}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG_NAME=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release and Attach APK
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ steps.vars.outputs.TAG_NAME }}
+          name: Release ${{ steps.vars.outputs.TAG_NAME }}
+          body: |
+            ## 📱 Mail Factory Pro Admin App - Release ${{ steps.vars.outputs.TAG_NAME }}
+            
+            ### ✨ Included Features:
+            - **Firebase Cloud Messaging (FCM)** real-time push notifications
+            - High-priority channels: Gmails, Withdrawals, New Users, Reports
+            - Background, Foreground, and Closed state notification delivery
+            - Android 13+ runtime notification permissions support
+            - Deep linking: Tapping notifications opens exact admin page/section
+            - In-App Admin Notification Preferences (Toggle by alert type)
+            - Secure device token management and deduplication
+            
+            ### 📥 Download APK:
+            Download the `app-release.apk` below and install it on your Android device.
+          files: |
+            android/app/build/outputs/apk/release/app-release.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
