@@ -24,17 +24,26 @@ android {
     signingConfigs {
         create("release") {
             val envPath = System.getenv("KEYSTORE_FILE")
-            val keystoreFile = if (!envPath.isNullOrEmpty()) file(envPath) else rootProject.file("keystore/release.jks")
+            val keystoreFile = if (!envPath.isNullOrEmpty()) java.io.File(envPath) else rootProject.file("keystore/release.jks")
             val storePass = System.getenv("KEYSTORE_PASSWORD") ?: "@RonyX154"
             val keyAl = System.getenv("KEY_ALIAS") ?: "mailfactory_admin"
             val keyPass = System.getenv("KEY_PASSWORD") ?: "@RonyX154"
+
+            println("--- Signing Config ---")
+            println("KEYSTORE_FILE environment: $envPath")
+            println("Keystore path: ${keystoreFile.absolutePath}")
+            println("Keystore exists: ${keystoreFile.exists()}")
 
             if (keystoreFile.exists()) {
                 storeFile = keystoreFile
                 storePassword = storePass
                 keyAlias = keyAl
                 keyPassword = keyPass
+                println("Release signing config successfully loaded.")
+            } else {
+                println("Release keystore not found. Build will proceed unsigned.")
             }
+            println("----------------------")
         }
     }
 

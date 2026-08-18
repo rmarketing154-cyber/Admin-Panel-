@@ -94,9 +94,18 @@ jobs:
     - name: Build Release APK
       run: |
         cd android
+        echo "Generating Gradle Wrapper..."
         gradle wrapper --gradle-version 8.4
         chmod +x gradlew
-        ./gradlew :app:assembleRelease --no-daemon --stacktrace
+        echo "Building Android Release APK..."
+        ./gradlew :app:assembleRelease --no-daemon --stacktrace > build.log 2>&1 || {
+          echo "::error::================ GRADLE BUILD FAILED ================"
+          echo "::error::Here are the last 150 lines of the build log:"
+          tail -n 150 build.log
+          echo "::error::======================================================"
+          exit 1
+        }
+        echo "Build Succeeded!"
 
     - name: Verify and Stage Release APK
       id: stage-apk
