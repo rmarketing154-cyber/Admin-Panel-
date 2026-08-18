@@ -1,0 +1,134 @@
+name: Android Bundle Release
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Release AAB Bundle
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.4'
+          cache-disabled: true
+
+      - name: Prepare Signing Keystore
+        id: prepare-keystore
+        env:
+          KEYSTORE_BASE64_VAL: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS_VAL: ${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}
+          KEYSTORE_PASSWORD_VAL: ${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}
+          KEY_PASSWORD_VAL: ${{ secrets.KEY_PASSWORD || '@RonyX154' }}
+        run: |
+          mkdir -p android/keystore
+          if [ -n "$KEYSTORE_BASE64_VAL" ]; then
+            echo "Decoding release keystore from GitHub Secrets..."
+            echo "$KEYSTORE_BASE64_VAL" | base64 -d > android/keystore/release.jks
+          else
+            echo "Generating automated release keystore with password..."
+            keytool -genkeypair -v -keystore android/keystore/release.jks \
+              -alias "$KEY_ALIAS_VAL" \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD_VAL" \
+              -keypass "$KEY_PASSWORD_VAL" \
+              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD" \
+              -storetype JKS
+          fi
+          echo "KEYSTORE_FILE=${GITHUB_WORKSPACE}/android/keystore/release.jks" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD_VAL" >> $GITHUB_ENV
+          echo "KEY_ALIAS=$KEY_ALIAS_VAL" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=$KEY_PASSWORD_VAL" >> $GITHUB_ENV
+
+      - name: Prepare google-services.json
+        env:
+          GOOGLE_SERVICES_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_CONTENT" ]; then
+            if [ -s "android/app/google-services.json" ]; then
+              echo "GOOGLE_SERVICES_JSON secret is empty, but found existing google-services.json in the repository. Proceeding with existing file."
+            else
+              echo "::error::GOOGLE_SERVICES_JSON secret is missing or empty, and no existing google-services.json found! Please configure it in your GitHub Repository Settings -> Secrets and variables -> Actions."
+              exit 1
+            fi
+          else
+            if [[ "$GOOGLE_SERVICES_CONTENT" =~ ^\{ ]]; then
+              echo "Detected plain-text JSON. Writing directly to android/app/google-services.json..."
+              echo "$GOOGLE_SERVICES_CONTENT" > android/app/google-services.json
+            else
+              echo "Detected Base64 encoded string. Decoding and writing to android/app/google-services.json..."
+              echo "$GOOGLE_SERVICES_CONTENT" | base64 -d > android/app/google-services.json
+            fi
+            
+            if [ -s "android/app/google-services.json" ]; then
+              echo "Successfully generated google-services.json at android/app/google-services.json!"
+            else
+              echo "::error::Failed to write google-services.json file!"
+              exit 1
+            fi
+          fi
+
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+      - name: Build Release Bundle and APK (AAB & APK)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify and Stage Release Artifacts
+        id: stage-artifacts
+        run: |
+          mkdir -p release-output
+          
+          # Find and stage AAB
+          AAB_PATH=$(find android/app/build/outputs/bundle -type f -name "*.aab" | sort | head -n 1)
+          if [ -n "$AAB_PATH" ] && [ -f "$AAB_PATH" ]; then
+            echo "Found AAB Bundle at: $AAB_PATH"
+            cp "$AAB_PATH" release-output/app-release.aab
+            echo "AAB_READY=true" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: No AAB generated!"
+          fi
+
+          # Find and stage APK
+          APK_PATH=$(find android/app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
+          if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
+            echo "Found APK at: $APK_PATH"
+            cp "$APK_PATH" release-output/app-release.apk
+            echo "APK_READY=true" >> $GITHUB_OUTPUT
+          else
+            echo "ERROR: No APK generated!"
+          fi
+          
+          if [ ! -f "release-output/app-release.aab" ] && [ ! -f "release-output/app-release.apk" ]; then
+            echo "ERROR: No release artifacts were built!"
+            find android/app/build -type f || true
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            release-output/app-release.apk
+            release-output/app-release.aab
+          retention-days: 30
