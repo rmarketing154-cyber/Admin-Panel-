@@ -1,4 +1,4 @@
-name: Android Bundle Release
+name: Android Release APK
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build Release AAB Bundle
+    name: Build Release APK
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -47,8 +47,7 @@ jobs:
               -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass "$KEYSTORE_PASSWORD_VAL" \
               -keypass "$KEY_PASSWORD_VAL" \
-              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD" \
-              -storetype JKS
+              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD"
           fi
           echo "KEYSTORE_FILE=${GITHUB_WORKSPACE}/android/keystore/release.jks" >> $GITHUB_ENV
           echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD_VAL" >> $GITHUB_ENV
@@ -87,27 +86,18 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
-      - name: Build Release Bundle and APK (AAB & APK)
+      - name: Regenerate Gradle Wrapper & Build Release APK
         run: |
           cd android
-          gradle :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
+          # Regenerate clean and uncorrupted wrapper
+          gradle wrapper --gradle-version 8.4
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
-      - name: Verify and Stage Release Artifacts
+      - name: Verify and Stage Release APK
         id: stage-artifacts
         run: |
           mkdir -p release-output
-          
-          # Find and stage AAB
-          AAB_PATH=$(find android/app/build/outputs/bundle -type f -name "*.aab" | sort | head -n 1)
-          if [ -n "$AAB_PATH" ] && [ -f "$AAB_PATH" ]; then
-            echo "Found AAB Bundle at: $AAB_PATH"
-            cp "$AAB_PATH" release-output/app-release.aab
-            echo "AAB_READY=true" >> $GITHUB_OUTPUT
-          else
-            echo "ERROR: No AAB generated!"
-          fi
-
-          # Find and stage APK
           APK_PATH=$(find android/app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
             echo "Found APK at: $APK_PATH"
@@ -115,19 +105,13 @@ jobs:
             echo "APK_READY=true" >> $GITHUB_OUTPUT
           else
             echo "ERROR: No APK generated!"
-          fi
-          
-          if [ ! -f "release-output/app-release.aab" ] && [ ! -f "release-output/app-release.apk" ]; then
-            echo "ERROR: No release artifacts were built!"
             find android/app/build -type f || true
             exit 1
           fi
 
-      - name: Upload Artifacts
+      - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-artifacts
-          path: |
-            release-output/app-release.apk
-            release-output/app-release.aab
+          name: release-apk
+          path: release-output/app-release.apk
           retention-days: 30
