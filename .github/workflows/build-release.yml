@@ -39,48 +39,59 @@ jobs:
 
       - name: Prepare Signing Keystore
         id: prepare-keystore
+        env:
+          KEYSTORE_BASE64_VAL: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS_VAL: ${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}
+          KEYSTORE_PASSWORD_VAL: ${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}
+          KEY_PASSWORD_VAL: ${{ secrets.KEY_PASSWORD || '@RonyX154' }}
         run: |
           mkdir -p android/keystore
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+          if [ -n "$KEYSTORE_BASE64_VAL" ]; then
             echo "Decoding release keystore from GitHub Secrets..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/keystore/release.jks
+            echo "$KEYSTORE_BASE64_VAL" | base64 -d > android/keystore/release.jks
           else
-            echo "Generating automated release keystore with password @RonyX154..."
-            keytool -genkey -v -keystore android/keystore/release.jks \
-              -alias "${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" \
+            echo "Generating automated release keystore with password..."
+            keytool -genkeypair -v -keystore android/keystore/release.jks \
+              -alias "$KEY_ALIAS_VAL" \
               -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass "${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" \
-              -keypass "${{ secrets.KEY_PASSWORD || '@RonyX154' }}" \
-              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD"
+              -storepass "$KEYSTORE_PASSWORD_VAL" \
+              -keypass "$KEY_PASSWORD_VAL" \
+              -dname "CN=MailFactoryAdmin, OU=Admin, O=MailFactory, L=Dhaka, S=Dhaka, C=BD" \
+              -storetype JKS
           fi
           echo "KEYSTORE_FILE=${GITHUB_WORKSPACE}/android/keystore/release.jks" >> $GITHUB_ENV
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS || 'mailfactory_admin' }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || '@RonyX154' }}" >> $GITHUB_ENV
+          echo "KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD_VAL" >> $GITHUB_ENV
+          echo "KEY_ALIAS=$KEY_ALIAS_VAL" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=$KEY_PASSWORD_VAL" >> $GITHUB_ENV
 
       - name: Prepare google-services.json
+        env:
+          GOOGLE_SERVICES_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
-            echo "::error::GOOGLE_SERVICES_JSON secret is missing or empty! Please configure it in your GitHub Repository Settings -> Secrets and variables -> Actions."
-            exit 1
-          fi
-          
-          # Detect if secret is base64 or plain text
-          SECRET_CONTENT='${{ secrets.GOOGLE_SERVICES_JSON }}'
-          if [[ "$SECRET_CONTENT" =~ ^\{ ]]; then
-            echo "Detected plain-text JSON. Writing directly to android/app/google-services.json..."
-            echo "$SECRET_CONTENT" > android/app/google-services.json
+          if [ -z "$GOOGLE_SERVICES_CONTENT" ]; then
+            if [ -s "android/app/google-services.json" ]; then
+              echo "GOOGLE_SERVICES_JSON secret is empty, but found existing google-services.json in the repository. Proceeding with existing file."
+            else
+              echo "::error::GOOGLE_SERVICES_JSON secret is missing or empty, and no existing google-services.json found! Please configure it in your GitHub Repository Settings -> Secrets and variables -> Actions."
+              exit 1
+            fi
           else
-            echo "Detected Base64 encoded string. Decoding and writing to android/app/google-services.json..."
-            echo "$SECRET_CONTENT" | base64 -d > android/app/google-services.json
-          fi
-          
-          # Verify file exists and is not empty
-          if [ -s "android/app/google-services.json" ]; then
-            echo "Successfully generated google-services.json at android/app/google-services.json!"
-          else
-            echo "::error::Failed to write google-services.json file!"
-            exit 1
+            # Detect if secret is base64 or plain text
+            if [[ "$GOOGLE_SERVICES_CONTENT" =~ ^\{ ]]; then
+              echo "Detected plain-text JSON. Writing directly to android/app/google-services.json..."
+              echo "$GOOGLE_SERVICES_CONTENT" > android/app/google-services.json
+            else
+              echo "Detected Base64 encoded string. Decoding and writing to android/app/google-services.json..."
+              echo "$GOOGLE_SERVICES_CONTENT" | base64 -d > android/app/google-services.json
+            fi
+            
+            # Verify file exists and is not empty
+            if [ -s "android/app/google-services.json" ]; then
+              echo "Successfully generated google-services.json at android/app/google-services.json!"
+            else
+              echo "::error::Failed to write google-services.json file!"
+              exit 1
+            fi
           fi
 
       - name: Accept Android SDK Licenses
