@@ -41,6 +41,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.switchWithdrawal.isChecked = tokenManager.isWithdrawalEnabled()
         binding.switchNewUser.isChecked = tokenManager.isNewUserEnabled()
         binding.switchReport.isChecked = tokenManager.isReportEnabled()
+        binding.etAdminUrl.setText(tokenManager.getAdminUrl())
 
         updateCategorySwitchesState(binding.switchMaster.isChecked)
     }
@@ -73,6 +74,16 @@ class SettingsActivity : AppCompatActivity() {
 
         binding.switchReport.setOnCheckedChangeListener { _, isChecked ->
             tokenManager.setCategoryEnabled("pref_report", isChecked)
+        }
+
+        binding.btnSaveUrl.setOnClickListener {
+            val url = binding.etAdminUrl.text?.toString() ?: ""
+            if (url.trim().isEmpty()) {
+                Toast.makeText(this, "URL cannot be empty", Toast.LENGTH_SHORT).show()
+            } else {
+                tokenManager.setAdminUrl(url)
+                Toast.makeText(this, "URL Saved successfully!", Toast.LENGTH_SHORT).show()
+            }
         }
 
         binding.btnSendTest.setOnClickListener {

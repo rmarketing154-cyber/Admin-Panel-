@@ -67,6 +67,18 @@ class AdminTokenManager(private val context: Context) {
     fun isNewUserEnabled(): Boolean = prefs.getBoolean("pref_new_user", true)
     fun isReportEnabled(): Boolean = prefs.getBoolean("pref_report", true)
 
+    fun getAdminUrl(): String {
+        return prefs.getString("pref_admin_url", "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app/") ?: "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app/"
+    }
+
+    fun setAdminUrl(url: String) {
+        var cleanUrl = url.trim()
+        if (cleanUrl.isNotEmpty() && !cleanUrl.endsWith("/")) {
+            cleanUrl += "/"
+        }
+        prefs.edit().putString("pref_admin_url", cleanUrl).apply()
+    }
+
     fun setPushEnabled(enabled: Boolean) {
         prefs.edit().putBoolean("pref_push_master", enabled).apply()
         val deviceId = getDeviceId()

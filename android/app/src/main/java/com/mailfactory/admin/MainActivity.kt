@@ -151,7 +151,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadUrl(defaultAdminUrl)
+            loadUrl(tokenManager.getAdminUrl())
         }
 
         binding.btnRetry.setOnClickListener {
