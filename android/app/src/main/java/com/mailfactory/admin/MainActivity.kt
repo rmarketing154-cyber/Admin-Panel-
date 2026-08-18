@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tokenManager: AdminTokenManager
 
     // Admin Console URL (Can point to local container or production hosting)
-    private val defaultAdminUrl = "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app"
+    private val defaultAdminUrl = "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app/"
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -106,6 +106,7 @@ class MainActivity : AppCompatActivity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.allowFileAccess = true
             settings.allowContentAccess = true
+            settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
             addJavascriptInterface(AdminJsBridge(), "AndroidBridge")
 
@@ -173,11 +174,29 @@ class MainActivity : AppCompatActivity() {
     private var pendingItemId: String? = null
 
     private fun handleNotificationIntent(intent: Intent) {
-        val target = intent.getStringExtra("EXTRA_TARGET_PAGE")
-        val itemId = intent.getStringExtra("EXTRA_ITEM_ID")
-        val notifType = intent.getStringExtra("EXTRA_NOTIFICATION_TYPE")
+        var target = intent.getStringExtra("EXTRA_TARGET_PAGE")
+        var itemId = intent.getStringExtra("EXTRA_ITEM_ID")
+        val notifType = intent.getStringExtra("EXTRA_NOTIFICATION_TYPE") ?: intent.getStringExtra("type")
 
-        Log.d(TAG, "Handling notification intent: target=$target, id=$itemId, type=$notifType")
+        // If not launched via custom foreground notification, parse direct FCM data extras
+        if (target.isNullOrEmpty()) {
+            target = intent.getStringExtra("target")
+        }
+        if (target.isNullOrEmpty()) {
+            val clickActionValue = intent.getStringExtra("click_action") ?: intent.getStringExtra("clickAction")
+            if (!clickActionValue.isNullOrEmpty() && !clickActionValue.contains("NOTIFICATION_CLICK", ignoreCase = true)) {
+                target = clickActionValue
+            }
+        }
+        if (target.isNullOrEmpty() && !notifType.isNullOrEmpty()) {
+            target = com.mailfactory.admin.utils.NotificationHelper.getTargetFromType(notifType)
+        }
+
+        if (itemId.isNullOrEmpty()) {
+            itemId = intent.getStringExtra("id") ?: intent.getStringExtra("submissionId")
+        }
+
+        Log.d(TAG, "Handling notification intent: resolved target=$target, id=$itemId, type=$notifType")
 
         if (!target.isNullOrEmpty()) {
             pendingTargetPage = target

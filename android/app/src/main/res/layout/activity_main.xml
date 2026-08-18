@@ -19,7 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#0F172A"
-            app:title="MAIL FACTORY"
+            app:title="Mail factory admin"
             app:titleTextColor="#FFFFFF"
             app:subtitle="Master Console"
             app:subtitleTextColor="#94A3B8" />

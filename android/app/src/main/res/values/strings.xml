@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">MAIL FACTORY</string>
+    <string name="app_name">Mail factory admin</string>
     <string name="channel_gmail_name">Gmail Notifications</string>
     <string name="channel_gmail_desc">Notifications for new incoming Gmail submissions</string>
     <string name="channel_withdrawal_name">Withdrawal Requests</string>

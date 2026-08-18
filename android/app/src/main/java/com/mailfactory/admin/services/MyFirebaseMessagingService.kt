@@ -24,8 +24,23 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // Parse Data payload
         val data = remoteMessage.data
         val type = data["type"] ?: "general"
-        val target = data["target"] ?: NotificationHelper.getTargetFromType(type)
-        val id = data["id"]
+        
+        // Handle click_action or clickAction payload explicitly
+        val clickActionValue = data["click_action"] 
+            ?: data["clickAction"] 
+            ?: remoteMessage.notification?.clickAction
+
+        var target = data["target"]
+        if (target.isNullOrBlank() && !clickActionValue.isNullOrBlank()) {
+            if (!clickActionValue.contains("NOTIFICATION_CLICK", ignoreCase = true)) {
+                target = clickActionValue
+            }
+        }
+        if (target.isNullOrBlank()) {
+            target = NotificationHelper.getTargetFromType(type)
+        }
+
+        val id = data["id"] ?: data["submissionId"]
 
         // Check if admin enabled notifications for this category
         if (!tokenManager.shouldShowNotification(type)) {
@@ -43,7 +58,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 "withdrawal", "withdraw" -> "💰 নতুন উত্তোলন রিকোয়েস্ট"
                 "new_user", "user" -> "👤 নতুন সদস্য রেজিস্ট্রেশন"
                 "report", "support" -> "⚠️ নতুন রিপোর্ট"
-                else -> "🔔 MAIL FACTORY Alert"
+                else -> "🔔 Mail factory admin Alert"
             }
         }
 
