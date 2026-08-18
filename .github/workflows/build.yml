@@ -101,24 +101,16 @@ jobs:
         find . -type f -name "*.apk" -delete
         find . -type f -name "*.aab" -delete
         
-        # Generate clean Gradle wrapper first
-        echo "Generating Gradle Wrapper..."
-        gradle wrapper --gradle-version 8.4
+        # Make Gradle wrapper executable
         chmod +x gradlew
         
         # Task 2: CLEAN the project
         echo "=== Task 2: Running gradlew clean ==="
         ./gradlew clean --no-daemon
         
-        # Task 3: BUILD only Release APK
+        # Task 3: BUILD only Release APK (streaming to console)
         echo "=== Task 3: Building Release APK ==="
-        ./gradlew :app:assembleRelease --no-daemon --stacktrace > build.log 2>&1 || {
-          echo "::error::================ GRADLE BUILD FAILED ================"
-          echo "::error::Here are the last 150 lines of the build log:"
-          tail -n 150 build.log
-          echo "::error::======================================================"
-          exit 1
-        }
+        ./gradlew :app:assembleRelease --no-daemon --stacktrace
         echo "Build Succeeded!"
         
         # Task 4: FINAL RESULT - Keep ONLY ONE file: app-release.apk and delete all intermediate files
@@ -160,6 +152,7 @@ jobs:
         path: android/app/build/outputs/apk/release/app-release.apk
 
     - name: Create Automatic GitHub Release
+      continue-on-error: true
       uses: softprops/action-gh-release@v2
       with:
         files: android/app/build/outputs/apk/release/app-release.apk
