@@ -35,11 +35,25 @@ android {
             println("Keystore exists: ${keystoreFile.exists()}")
 
             if (keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = storePass
-                keyAlias = keyAl
-                keyPassword = keyPass
-                println("Release signing config successfully loaded.")
+                try {
+                    val keyStore = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+                    val fis = java.io.FileInputStream(keystoreFile)
+                    fis.use { stream ->
+                        keyStore.load(stream, storePass.toCharArray())
+                    }
+                    if (!keyStore.containsAlias(keyAl)) {
+                        throw Exception("Alias '$keyAl' not found in keystore.")
+                    }
+                    
+                    storeFile = keystoreFile
+                    storePassword = storePass
+                    keyAlias = keyAl
+                    keyPassword = keyPass
+                    println("Release signing config successfully loaded and verified.")
+                } catch (e: Exception) {
+                    println("WARNING: Release signing configuration is invalid: ${e.message}")
+                    println("Falling back to unsigned build to prevent build crash.")
+                }
             } else {
                 println("Release keystore not found. Build will proceed unsigned.")
             }
