@@ -86,13 +86,27 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
-      - name: Regenerate Gradle Wrapper & Build Release APK
+      - name: Execute Task: Build Release APK and Clean Everything Else
         run: |
           cd android
+          
+          # Task 1: DELETE all previous builds and old .apk / .aab files
+          echo "=== Task 1: Deleting previous builds and old artifacts ==="
+          rm -rf build app/build app/release .gradle
+          find . -type f -name "*.apk" -delete
+          find . -type f -name "*.aab" -delete
+          
+          # Generate clean Gradle wrapper first
           echo "Generating Gradle Wrapper..."
           gradle wrapper --gradle-version 8.4
           chmod +x gradlew
-          echo "Building Android Release APK..."
+          
+          # Task 2: CLEAN the project
+          echo "=== Task 2: Running gradlew clean ==="
+          ./gradlew clean --no-daemon
+          
+          # Task 3: BUILD only Release APK
+          echo "=== Task 3: Building Release APK ==="
           ./gradlew :app:assembleRelease --no-daemon --stacktrace > build.log 2>&1 || {
             echo "::error::================ GRADLE BUILD FAILED ================"
             echo "::error::Here are the last 150 lines of the build log:"
@@ -101,25 +115,42 @@ jobs:
             exit 1
           }
           echo "Build Succeeded!"
-
-      - name: Verify and Stage Release APK
-        id: stage-artifacts
-        run: |
-          mkdir -p release-output
-          APK_PATH=$(find android/app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
+          
+          # Task 4: FINAL RESULT - Keep ONLY ONE file: app-release.apk and delete all intermediate files
+          echo "=== Task 4: Staging final APK and deleting intermediate files ==="
+          # Find the generated APK
+          TEMP_APK="/tmp/app-release.apk"
+          APK_PATH=$(find app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
           if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
-            echo "Found APK at: $APK_PATH"
-            cp "$APK_PATH" release-output/app-release.apk
-            echo "APK_READY=true" >> $GITHUB_OUTPUT
+            echo "Moving generated APK to temporary storage: $APK_PATH"
+            cp "$APK_PATH" "$TEMP_APK"
           else
-            echo "ERROR: No APK generated!"
-            find android/app/build -type f || true
+            echo "::error::No APK generated!"
             exit 1
           fi
+          
+          # Delete all intermediate files/folders (except source code and gradle configuration)
+          echo "Cleaning all intermediate build files..."
+          rm -rf build app/build .gradle
+          
+          # Recreate the target directory and restore only the final release APK
+          TARGET_DIR="app/build/outputs/apk/release"
+          mkdir -p "$TARGET_DIR"
+          mv "$TEMP_APK" "$TARGET_DIR/app-release.apk"
+          
+          # Task 5: Show the final APK path and size
+          echo "=== Task 5: Final APK path and size ==="
+          FINAL_PATH="android/$TARGET_DIR/app-release.apk"
+          echo "Final APK Path: $FINAL_PATH"
+          echo "Final APK Size:"
+          ls -lh "$TARGET_DIR/app-release.apk"
+          
+          # Export path for subsequent upload-artifact steps
+          echo "FINAL_APK_PATH=${FINAL_PATH}" >> $GITHUB_ENV
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: release-output/app-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
