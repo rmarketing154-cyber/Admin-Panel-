@@ -60,8 +60,27 @@ jobs:
 
       - name: Prepare google-services.json
         run: |
-          if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
-            echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > android/app/google-services.json
+          if [ -z "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON secret is missing or empty! Please configure it in your GitHub Repository Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          
+          # Detect if secret is base64 or plain text
+          SECRET_CONTENT='${{ secrets.GOOGLE_SERVICES_JSON }}'
+          if [[ "$SECRET_CONTENT" =~ ^\{ ]]; then
+            echo "Detected plain-text JSON. Writing directly to android/app/google-services.json..."
+            echo "$SECRET_CONTENT" > android/app/google-services.json
+          else
+            echo "Detected Base64 encoded string. Decoding and writing to android/app/google-services.json..."
+            echo "$SECRET_CONTENT" | base64 -d > android/app/google-services.json
+          fi
+          
+          # Verify file exists and is not empty
+          if [ -s "android/app/google-services.json" ]; then
+            echo "Successfully generated google-services.json at android/app/google-services.json!"
+          else
+            echo "::error::Failed to write google-services.json file!"
+            exit 1
           fi
 
       - name: Accept Android SDK Licenses
