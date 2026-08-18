@@ -101,7 +101,8 @@ jobs:
       - name: Build Release APK
         run: |
           cd android
-          gradle :app:assembleRelease --no-daemon --stacktrace
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
 
       - name: Verify and Stage Release APK
         id: stage-apk
@@ -167,3 +168,21 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies & Build Web App
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy Admin Panel to GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+
