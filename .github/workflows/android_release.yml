@@ -90,8 +90,7 @@ jobs:
       - name: Build Release Bundle and APK (AAB & APK)
         run: |
           cd android
-          chmod +x gradlew
-          ./gradlew :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
+          gradle :app:bundleRelease :app:assembleRelease --no-daemon --stacktrace
 
       - name: Verify and Stage Release Artifacts
         id: stage-artifacts
