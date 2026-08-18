@@ -33,7 +33,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState('dashboard');
   
-  const data = useAdminData();
+  const data = useAdminData(user);
 
   // Listen for Deep Link navigation from Android FCM notification clicks
   useEffect(() => {

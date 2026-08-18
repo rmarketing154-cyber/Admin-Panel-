@@ -1,121 +1,234 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { ref, update, push } from 'firebase/database';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import Swal from 'sweetalert2';
-import { Users as UsersIcon, ChevronLeft, Search, Download, ChevronRight, ShieldBan, Trophy, Coins, X, Mail, Clock, Smartphone, Calendar, ArrowUpCircle, MessageSquare, Key, List, TrendingUp } from 'lucide-react';
+import { 
+  Users as UsersIcon, 
+  ChevronLeft, 
+  Search, 
+  Download, 
+  ChevronRight, 
+  ShieldBan, 
+  Trophy, 
+  Coins, 
+  Mail, 
+  Clock, 
+  Smartphone, 
+  Calendar, 
+  ArrowUpCircle, 
+  MessageSquare, 
+  Key, 
+  List, 
+  TrendingUp, 
+  Wallet, 
+  CheckCircle2, 
+  XCircle, 
+  Copy, 
+  Filter, 
+  ArrowUpDown, 
+  ExternalLink,
+  ShieldCheck,
+  Percent,
+  Inbox,
+  UserCheck,
+  AlertCircle,
+  Eye,
+  Hash,
+  Activity
+} from 'lucide-react';
 
-const InfoCard = ({ icon, label, value }: any) => (
-  <div className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm hover:border-indigo-200 transition-colors">
-    <div className="w-12 h-12 bg-slate-50 text-slate-500 rounded-xl flex items-center justify-center shrink-0">
-      {icon}
-    </div>
-    <div className="min-w-0 flex-1">
-      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">{label}</div>
-      <div className="font-bold text-slate-800 text-sm truncate" title={String(value)}>{value}</div>
-    </div>
-  </div>
-);
-
-const StatCard = ({ icon, label, value, color }: any) => {
-  const colors: any = {
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    emerald: 'bg-emerald-50 text-emerald-700 border-emerald-100',
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    purple: 'bg-purple-50 text-purple-700 border-purple-100',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
-    red: 'bg-red-50 text-red-700 border-red-100',
-  };
-  const clr = colors[color] || colors.slate;
-  return (
-    <div className={`border rounded-2xl p-5 flex flex-col justify-center items-center text-center shadow-sm ${clr}`}>
-      <div className="mb-3 opacity-90">{icon}</div>
-      <div className="text-2xl font-black mb-1.5">{value}</div>
-      <div className="text-[10px] font-bold uppercase tracking-wider opacity-75">{label}</div>
-    </div>
-  );
-};
-
-const ActionBtn = ({ icon, label, onClick, color }: any) => {
-  const colors: any = {
-    indigo: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200',
-    amber: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200',
-    emerald: 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200',
-    blue: 'bg-blue-500 hover:bg-blue-600 shadow-blue-200',
-    purple: 'bg-purple-500 hover:bg-purple-600 shadow-purple-200',
-    slate: 'bg-slate-700 hover:bg-slate-800 shadow-slate-200',
-    red: 'bg-red-500 hover:bg-red-600 shadow-red-200',
-  };
-  const clr = colors[color] || colors.slate;
-  return (
-    <button onClick={onClick} className={`text-white p-4 rounded-2xl flex flex-col items-center justify-center gap-2 transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 ${clr}`}>
-      {icon}
-      <span className="text-xs font-bold text-center leading-tight">{label}</span>
-    </button>
-  );
-}
-
-export default function Users({ data }: any) {
+export default function Users({ data, setCurrentTab }: any) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'submissions' | 'withdrawals' | 'referrals' | 'actions'>('overview');
 
+  // Keep selected user updated if live data changes
   useEffect(() => {
     if (selectedUser) {
-      const updated = data.users.find((u: any) => u.uid === selectedUser.uid);
+      const updated = (data.users || []).find((u: any) => u.uid === selectedUser.uid);
       if (updated) setSelectedUser(updated);
     }
   }, [data.users]);
 
-  let list = data.users;
-  if (filter === 'active') list = list.filter((u:any) => u.last_login && u.last_login > (Date.now() - 86400000));
-  if (filter === 'blocked') list = list.filter((u:any) => u.is_blocked);
-  if (filter === 'top') list = list.filter((u:any) => u.isTopSeller);
-
-  if (search) {
-    const s = search.toLowerCase();
-    list = list.filter((u:any) => 
-      (u.username?.toLowerCase().includes(s)) ||
-      (u.email?.toLowerCase().includes(s)) ||
-      (u.uid?.toLowerCase().includes(s))
-    );
-  }
-
-  // Sort by newest first
-  list = [...list].sort((a: any, b: any) => {
-    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-    return timeB - timeA;
-  });
-
-  const exportCSV = () => {
-    let csv = 'Username,Email,Balance,Hold,Joined\n';
-    data.users.forEach((u:any) => {
-      csv += `"${u.username || ''}","${u.email || ''}",${u.balance || 0},${u.hold || 0},"${u.createdAt || ''}"\n`;
+  const copyToClipboard = (text: string, label = 'Copied') => {
+    navigator.clipboard.writeText(text);
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: `${label} copied to clipboard`,
+      showConfirmButton: false,
+      timer: 1500
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `users_export_${Date.now()}.csv`;
-    a.click();
   };
 
   const formatTime = (ts: any) => {
     if (!ts) return 'N/A';
     const d = new Date(ts);
     if (isNaN(d.getTime())) return String(ts);
-    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    return d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Action Handlers
+  // User Stats & Calculations for Filter/Sort
+  const usersWithStats = useMemo(() => {
+    const subs = data.submissions || [];
+    const withs = data.withdraws || [];
+    const allUsers = data.users || [];
+
+    // Map for faster lookups
+    const subsByUser: Record<string, any[]> = {};
+    subs.forEach((s: any) => {
+      if (!subsByUser[s.userId]) subsByUser[s.userId] = [];
+      subsByUser[s.userId].push(s);
+    });
+
+    const withsByUser: Record<string, any[]> = {};
+    withs.forEach((w: any) => {
+      if (!withsByUser[w.userId]) withsByUser[w.userId] = [];
+      withsByUser[w.userId].push(w);
+    });
+
+    const refsByUser: Record<string, any[]> = {};
+    allUsers.forEach((u: any) => {
+      if (u.referredBy) {
+        if (!refsByUser[u.referredBy]) refsByUser[u.referredBy] = [];
+        refsByUser[u.referredBy].push(u);
+      }
+    });
+
+    return allUsers.map((u: any) => {
+      const userSubs = subsByUser[u.uid] || [];
+      const userWiths = withsByUser[u.uid] || [];
+      const userRefs = refsByUser[u.uid] || refsByUser[u.referralCode] || [];
+
+      const approvedSubs = userSubs.filter((s: any) => s.status === 'approved');
+      const pendingSubs = userSubs.filter((s: any) => s.status === 'pending' || s.status === 'checking');
+      const rejectedSubs = userSubs.filter((s: any) => s.status === 'rejected');
+      const approvedWiths = userWiths.filter((w: any) => w.status === 'approved');
+      const pendingWiths = userWiths.filter((w: any) => w.status === 'pending');
+
+      const totalWithdrawn = approvedWiths.reduce((sum: number, w: any) => sum + Number(w.amount || 0), 0);
+      const approvedEmails = approvedSubs.reduce((sum: number, s: any) => sum + Number(s.approvedCount || s.gmails?.length || 0), 0) + Number(u.manual_approved_count || 0);
+      const totalSubmittedEmails = userSubs.reduce((sum: number, s: any) => sum + (s.gmails?.length || 1), 0);
+
+      const approvalRate = totalSubmittedEmails > 0 
+        ? Math.min(100, Math.round((approvedEmails / totalSubmittedEmails) * 100))
+        : (approvedEmails > 0 ? 100 : 0);
+
+      const lifetimeEarned = Number(u.balance || 0) + totalWithdrawn;
+
+      return {
+        ...u,
+        totalSubsCount: userSubs.length,
+        pendingSubsCount: pendingSubs.length,
+        approvedSubsCount: approvedSubs.length,
+        rejectedSubsCount: rejectedSubs.length,
+        totalWithdrawn,
+        pendingWithsCount: pendingWiths.length,
+        approvedEmails,
+        totalSubmittedEmails,
+        approvalRate,
+        lifetimeEarned,
+        referralsCount: userRefs.length,
+        userSubs,
+        userWiths,
+        userRefs
+      };
+    });
+  }, [data.users, data.submissions, data.withdraws]);
+
+  // Filtering & Sorting
+  const filteredUsers = useMemo(() => {
+    let list = [...usersWithStats];
+    const now = Date.now();
+
+    // Filter
+    if (filter === 'active') {
+      list = list.filter((u: any) => u.last_login && (now - new Date(u.last_login).getTime() < 86400000));
+    } else if (filter === 'new') {
+      list = list.filter((u: any) => u.createdAt && (now - new Date(u.createdAt).getTime() < 86400000));
+    } else if (filter === 'blocked') {
+      list = list.filter((u: any) => u.is_blocked);
+    } else if (filter === 'top') {
+      list = list.filter((u: any) => u.isTopSeller);
+    } else if (filter === 'pending_subs') {
+      list = list.filter((u: any) => u.pendingSubsCount > 0);
+    } else if (filter === 'pending_withs') {
+      list = list.filter((u: any) => u.pendingWithsCount > 0);
+    } else if (filter === 'high_earners') {
+      list = list.filter((u: any) => (u.balance || 0) >= 500 || u.totalWithdrawn >= 1000);
+    }
+
+    // Search
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      list = list.filter((u: any) =>
+        (u.username || '').toLowerCase().includes(q) ||
+        (u.email || '').toLowerCase().includes(q) ||
+        (u.uid || '').toLowerCase().includes(q) ||
+        (u.phone || '').toLowerCase().includes(q) ||
+        (u.device || u.device_name || '').toLowerCase().includes(q) ||
+        (u.referralCode || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Sort
+    list.sort((a: any, b: any) => {
+      if (sortBy === 'newest') {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA;
+      }
+      if (sortBy === 'oldest') {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tA - tB;
+      }
+      if (sortBy === 'balance_high') return (b.balance || 0) - (a.balance || 0);
+      if (sortBy === 'withdrawn_high') return b.totalWithdrawn - a.totalWithdrawn;
+      if (sortBy === 'approved_high') return b.approvedEmails - a.approvedEmails;
+      if (sortBy === 'subs_high') return b.totalSubsCount - a.totalSubsCount;
+      if (sortBy === 'refs_high') return b.referralsCount - a.referralsCount;
+      if (sortBy === 'last_login') {
+        const lA = a.last_login ? new Date(a.last_login).getTime() : 0;
+        const lB = b.last_login ? new Date(b.last_login).getTime() : 0;
+        return lB - lA;
+      }
+      return 0;
+    });
+
+    return list;
+  }, [usersWithStats, filter, search, sortBy]);
+
+  const exportCSV = () => {
+    let csv = 'UID,Username,Email,Phone,Level,Main Balance,Hold Balance,Total Withdrawn,Approved Emails,Submissions,Referrals,Status,Created At,Last Login\n';
+    usersWithStats.forEach((u: any) => {
+      csv += `"${u.uid}","${u.username || ''}","${u.email || ''}","${u.phone || ''}",${u.level || 1},${u.balance || 0},${u.hold || 0},${u.totalWithdrawn},${u.approvedEmails},${u.totalSubsCount},${u.referralsCount},"${u.is_blocked ? 'Blocked' : 'Active'}","${u.createdAt || ''}","${u.last_login || ''}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `users_full_dossier_${Date.now()}.csv`;
+    a.click();
+  };
+
+  // Administrative Actions
   const handleMessage = async (u: any) => {
     const { value: msg } = await Swal.fire({
-      title: 'Send Notification',
+      title: `Send Notification to ${u.username || 'User'}`,
       input: 'textarea',
-      inputPlaceholder: 'Type message for user...',
-      showCancelButton: true
+      inputPlaceholder: 'Enter push notification message...',
+      inputAttributes: {
+        'aria-label': 'Type message here'
+      },
+      showCancelButton: true,
+      confirmButtonText: 'Send Notification',
+      confirmButtonColor: '#4f46e5'
     });
+
     if (msg) {
       await push(ref(db, `users/${u.uid}/notifications`), {
         title: 'Admin Message',
@@ -123,204 +236,935 @@ export default function Users({ data }: any) {
         type: 'info',
         timestamp: Date.now()
       });
-      Swal.fire('Sent', 'Message delivered via Push Notification', 'success');
+      Swal.fire('Delivered', 'Notification queued for user', 'success');
     }
   };
 
   const handleAddBal = async (u: any) => {
-    const { value: amt } = await Swal.fire({ title: 'Add/Subtract Balance (৳)', input: 'number' });
-    if (amt) {
-      await update(ref(db, `users/${u.uid}`), { balance: (u.balance || 0) + Number(amt) });
-      Swal.fire('Updated', `Balance modified by ৳${amt}`, 'success');
+    const { value: amt } = await Swal.fire({
+      title: 'Adjust Main Balance (৳)',
+      text: `Current balance: ৳${(u.balance || 0).toFixed(2)}. Enter positive number to add, negative to deduct.`,
+      input: 'number',
+      inputPlaceholder: 'e.g. 50 or -20',
+      showCancelButton: true,
+      confirmButtonText: 'Apply Adjustment',
+      confirmButtonColor: '#4f46e5'
+    });
+
+    if (amt !== undefined && amt !== '') {
+      const newBal = (u.balance || 0) + Number(amt);
+      await update(ref(db, `users/${u.uid}`), { balance: newBal });
+      
+      // Log notification
+      await push(ref(db, `users/${u.uid}/notifications`), {
+        title: 'ব্যালেন্স অ্যাডজাস্টমেন্ট',
+        message: `অ্যাডমিন কর্তৃক আপনার একাউন্টে ৳${amt} সমন্বয় করা হয়েছে। বর্তমান ব্যালেন্স: ৳${newBal.toFixed(2)}`,
+        type: Number(amt) >= 0 ? 'success' : 'warning',
+        timestamp: Date.now()
+      });
+
+      Swal.fire('Updated', `Balance modified by ৳${amt}. New balance: ৳${newBal.toFixed(2)}`, 'success');
+    }
+  };
+
+  const handleHoldBal = async (u: any) => {
+    const { value: amt } = await Swal.fire({
+      title: 'Adjust Hold Balance (৳)',
+      text: `Current hold: ৳${(u.hold || 0).toFixed(2)}`,
+      input: 'number',
+      inputPlaceholder: 'e.g. 0 to clear hold',
+      showCancelButton: true,
+      confirmButtonText: 'Save Hold',
+      confirmButtonColor: '#f59e0b'
+    });
+
+    if (amt !== undefined && amt !== '') {
+      await update(ref(db, `users/${u.uid}`), { hold: Number(amt) });
+      Swal.fire('Updated', `Hold balance updated to ৳${amt}`, 'success');
     }
   };
 
   const handleBoostLvl = async (u: any) => {
-    const { value: lvl } = await Swal.fire({ title: 'Set Level', input: 'number', inputValue: u.level || 1 });
+    const { value: lvl } = await Swal.fire({
+      title: 'Set User Level',
+      input: 'select',
+      inputOptions: {
+        '1': 'Level 1 (Novice)',
+        '2': 'Level 2 (Active Worker)',
+        '3': 'Level 3 (Pro Seller)',
+        '4': 'Level 4 (Elite Partner)',
+        '5': 'Level 5 (VIP Master)'
+      },
+      inputValue: String(u.level || 1),
+      showCancelButton: true,
+      confirmButtonColor: '#7c3aed'
+    });
+
     if (lvl) {
       await update(ref(db, `users/${u.uid}`), { level: Number(lvl) });
-      Swal.fire('Updated', `Level set to ${lvl}`, 'success');
+      Swal.fire('Level Updated', `User promoted to Level ${lvl}`, 'success');
     }
   };
 
   const handleRefEarn = async (u: any) => {
-    const { value: amt } = await Swal.fire({ title: 'Set Referral Earnings (৳)', input: 'number', inputValue: u.referralEarnings || 0 });
-    if (amt) {
+    const { value: amt } = await Swal.fire({
+      title: 'Set Referral Commission (৳)',
+      input: 'number',
+      inputValue: u.referralEarnings || 0,
+      showCancelButton: true,
+      confirmButtonColor: '#10b981'
+    });
+
+    if (amt !== undefined && amt !== '') {
       await update(ref(db, `users/${u.uid}`), { referralEarnings: Number(amt) });
-      Swal.fire('Updated', 'Referral earnings modified', 'success');
+      Swal.fire('Saved', 'Referral earnings updated', 'success');
     }
   };
 
   const handleResetPass = async (u: any) => {
-    if (!u.email) return Swal.fire('Error', 'User has no email address', 'error');
+    if (!u.email) return Swal.fire('Error', 'User has no registered email address', 'error');
     try {
       await sendPasswordResetEmail(auth, u.email);
-      Swal.fire('Sent', 'Password reset email sent', 'success');
-    } catch(e:any) {
-      Swal.fire('Error', e.message, 'error');
+      Swal.fire('Email Sent', `Password reset link sent to ${u.email}`, 'success');
+    } catch (e: any) {
+      Swal.fire('Notice', `Attempted reset email: ${e.message}`, 'info');
     }
   };
 
-  const handleViewSubs = (u: any) => {
-    const subs = data.submissions.filter((s:any) => s.userId === u.uid);
-    Swal.fire('Submissions', `User has made ${subs.length} total submissions. Check the Work Queue for details.`, 'info');
-  };
-
   const handleBlock = async (u: any) => {
-    await update(ref(db, `users/${u.uid}`), { is_blocked: !u.is_blocked });
+    const willBlock = !u.is_blocked;
+    const confirm = await Swal.fire({
+      title: willBlock ? 'Ban / Block User?' : 'Unblock User?',
+      text: willBlock ? 'This will prevent the user from logging in and submitting work.' : 'User will be restored to active status.',
+      icon: willBlock ? 'warning' : 'question',
+      showCancelButton: true,
+      confirmButtonText: willBlock ? 'Yes, Ban Account' : 'Yes, Unban',
+      confirmButtonColor: willBlock ? '#ef4444' : '#10b981'
+    });
+
+    if (confirm.isConfirmed) {
+      await update(ref(db, `users/${u.uid}`), { is_blocked: willBlock });
+      Swal.fire('Updated', willBlock ? 'User banned successfully' : 'User unbanned successfully', 'success');
+    }
   };
 
   const handleTopSeller = async (u: any) => {
     await update(ref(db, `users/${u.uid}`), { isTopSeller: !u.isTopSeller });
+    Swal.fire('Updated', u.isTopSeller ? 'Removed from Top Sellers' : 'Marked as Top Seller', 'success');
   };
 
-
-
+  // DETAILED USER PROFILE VIEW
   if (selectedUser) {
-    const totalWdAmount = data.withdraws.filter((w:any) => w.userId === selectedUser.uid && w.status === 'approved').reduce((a:number, b:any) => a + Number(b.amount), 0);
-    const userSubsCount = data.submissions.filter((s:any) => s.userId === selectedUser.uid).length;
-    const refsCount = data.users.filter((u:any) => u.referredBy === selectedUser.uid).length;
-    
+    const selectedStats = usersWithStats.find((u: any) => u.uid === selectedUser.uid) || selectedUser;
+    const userSubs = selectedStats.userSubs || [];
+    const userWiths = selectedStats.userWiths || [];
+    const userRefs = selectedStats.userRefs || [];
+
     return (
       <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col flex-1">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center shrink-0">
+        {/* Top Navigation Bar */}
+        <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
           <button 
             onClick={() => setSelectedUser(null)}
-            className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 font-bold transition-colors"
+            className="flex items-center gap-2 text-slate-600 hover:text-indigo-600 font-bold transition-colors text-sm"
           >
-            <ChevronLeft size={20} />
-            Back to Users
+            <ChevronLeft size={18} />
+            Back to All Users ({usersWithStats.length})
           </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleMessage(selectedUser)}
+              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors"
+            >
+              <MessageSquare size={14} /> Send Alert
+            </button>
+            <button
+              onClick={() => handleBlock(selectedUser)}
+              className={`px-3 py-1.5 font-bold rounded-lg text-xs flex items-center gap-1.5 transition-colors ${
+                selectedUser.is_blocked 
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700' 
+                  : 'bg-red-50 hover:bg-red-100 text-red-700'
+              }`}
+            >
+              <ShieldBan size={14} /> {selectedUser.is_blocked ? 'Unban' : 'Ban User'}
+            </button>
+          </div>
         </div>
-        
-        <div className="flex-1 p-4 sm:p-6 bg-slate-50/50 overflow-y-auto">
-          {/* Profile Header */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8 mb-6 relative overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-            
-            <div className="flex items-center gap-5">
-              <div className="w-20 h-20 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-black text-4xl shadow-inner border border-indigo-200 shrink-0 overflow-hidden relative">{selectedUser.photoURL ? (  <img src={selectedUser.photoURL} alt={selectedUser.username} className="w-full h-full object-cover absolute inset-0" onError={(e: any) => { e.currentTarget.style.display = 'none'; }} />) : null}<span className={selectedUser.photoURL ? 'opacity-0' : ''}>{selectedUser.username?.charAt(0)?.toUpperCase() || 'U'}</span></div>
-              <div>
-                <h2 className="font-black text-slate-800 text-2xl flex items-center gap-2">
-                  {selectedUser.username || 'User'}
-                  {selectedUser.isTopSeller && <Trophy size={20} className="text-amber-500" title="Top Seller" />}
-                  {selectedUser.is_blocked && <ShieldBan size={20} className="text-red-500" title="Blocked" />}
-                  {selectedUser.createdAt && (Date.now() - new Date(selectedUser.createdAt).getTime() < 24 * 60 * 60 * 1000) && <span className="px-3 py-1 rounded-md text-xs uppercase font-black tracking-widest bg-red-100 text-red-600 border border-red-200 animate-pulse shadow-sm ml-2">NEW</span>}
-                </h2>
-                <div className="text-sm font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-md inline-block mt-2 tracking-wider">UID: {selectedUser.uid}</div>
+
+        {/* User Profile Header Card */}
+        <div className="p-5 sm:p-6 bg-slate-50/60 border-b border-slate-200">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+
+            <div className="flex items-start sm:items-center gap-4 sm:gap-5">
+              <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-indigo-100 to-indigo-50 text-indigo-600 flex items-center justify-center font-black text-3xl shadow-sm border border-indigo-200 shrink-0 overflow-hidden relative">
+                {selectedUser.photoURL ? (
+                  <img 
+                    src={selectedUser.photoURL} 
+                    alt={selectedUser.username} 
+                    className="w-full h-full object-cover absolute inset-0" 
+                    onError={(e: any) => { e.currentTarget.style.display = 'none'; }} 
+                  />
+                ) : null}
+                <span className={selectedUser.photoURL ? 'opacity-0' : ''}>
+                  {selectedUser.username?.charAt(0)?.toUpperCase() || 'U'}
+                </span>
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-extrabold text-slate-900 text-xl sm:text-2xl truncate">
+                    {selectedUser.username || 'Unnamed User'}
+                  </h1>
+                  {selectedUser.isTopSeller && (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-800 border border-amber-300 flex items-center gap-1">
+                      <Trophy size={12} className="fill-amber-500" /> Top Seller
+                    </span>
+                  )}
+                  {selectedUser.is_blocked ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-red-100 text-red-800 border border-red-300 flex items-center gap-1">
+                      <ShieldBan size={12} /> Banned
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                      <ShieldCheck size={12} /> Active
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+                    Lv-{selectedUser.level || 1}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 mt-2">
+                  <span className="flex items-center gap-1 font-mono bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                    <Hash size={12} /> UID: {selectedUser.uid}
+                    <button onClick={() => copyToClipboard(selectedUser.uid, 'UID')} className="text-slate-400 hover:text-indigo-600">
+                      <Copy size={12} />
+                    </button>
+                  </span>
+                  <span className="flex items-center gap-1 text-slate-600">
+                    <Mail size={13} className="text-slate-400" /> {selectedUser.email || 'No email provided'}
+                  </span>
+                  {selectedUser.phone && (
+                    <span className="flex items-center gap-1 text-slate-600">
+                      <Smartphone size={13} className="text-slate-400" /> {selectedUser.phone}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="text-right hidden sm:block">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Current Balance</div>
-                <div className="font-black text-3xl text-indigo-600">৳{(selectedUser.balance || 0).toFixed(2)}</div>
+
+            {/* Balances Highlight */}
+            <div className="flex items-center gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 shrink-0">
+              <div className="px-3 border-r border-slate-200">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Main Balance</div>
+                <div className="font-black text-2xl text-emerald-600">৳{(selectedUser.balance || 0).toFixed(2)}</div>
+              </div>
+              <div className="px-3 border-r border-slate-200">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hold (Pending)</div>
+                <div className="font-black text-2xl text-amber-600">৳{(selectedUser.hold || 0).toFixed(2)}</div>
+              </div>
+              <div className="px-3">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Paid</div>
+                <div className="font-black text-2xl text-indigo-600">৳{selectedStats.totalWithdrawn.toFixed(2)}</div>
               </div>
             </div>
           </div>
-          
-          {/* Info Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <InfoCard icon={<Mail size={20}/>} label="Email Address" value={selectedUser.email || 'N/A'} />
-            <InfoCard icon={<Clock size={20}/>} label="Last Login" value={formatTime(selectedUser.last_login)} />
-            <InfoCard icon={<Smartphone size={20}/>} label="Device Info" value={selectedUser.device || selectedUser.device_name || 'Unknown Device'} />
-            <InfoCard icon={<Calendar size={20}/>} label="Join Date" value={formatTime(selectedUser.createdAt)} />
+
+          {/* Tab Navigation inside Profile */}
+          <div className="flex gap-2 overflow-x-auto mt-4 pb-1">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'overview'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Activity size={14} /> Comprehensive Dossier
+            </button>
+
+            <button
+              onClick={() => setActiveTab('submissions')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'submissions'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Inbox size={14} /> Submissions History ({userSubs.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('withdrawals')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'withdrawals'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Wallet size={14} /> Withdrawals ({userWiths.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('referrals')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'referrals'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <UsersIcon size={14} /> Referrals ({userRefs.length})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('actions')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'actions'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Key size={14} /> Admin Controls
+            </button>
           </div>
+        </div>
+
+        {/* Tab Content Body */}
+        <div className="flex-1 p-5 sm:p-6 overflow-y-auto bg-slate-50/40">
           
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <StatCard icon={<Coins size={24}/>} label="Main Balance" value={`৳${(selectedUser.balance || 0).toFixed(2)}`} color="indigo" />
-            <StatCard icon={<ShieldBan size={24}/>} label="Hold Balance" value={`৳${(selectedUser.hold || 0).toFixed(2)}`} color="amber" />
-            <StatCard icon={<ArrowUpCircle size={24}/>} label="Total Withdraw" value={`৳${totalWdAmount.toFixed(2)}`} color="emerald" />
-            <StatCard icon={<TrendingUp size={24}/>} label="Ref Earnings" value={`৳${(selectedUser.referralEarnings || 0).toFixed(2)}`} color="blue" />
-            
-            <StatCard icon={<Mail size={24}/>} label="Emails Approved" value={selectedUser.manual_approved_count || 0} color="slate" />
-            <StatCard icon={<List size={24}/>} label="Total Subs" value={userSubsCount} color="slate" />
-            <StatCard icon={<Trophy size={24}/>} label="Level" value={`Lv-${selectedUser.level || 1}`} color="purple" />
-            <StatCard icon={<UsersIcon size={24}/>} label="Referrals" value={refsCount} color="slate" />
-          </div>
-          
-          {/* Admin Actions */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-            <div className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-              <ShieldBan size={18} className="text-indigo-500" /> Administrative Actions
+          {/* 1. OVERVIEW DOSSIER TAB */}
+          {activeTab === 'overview' && (
+            <div className="space-y-6">
+              {/* Performance Metrics Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lifetime Value</div>
+                  <div className="text-xl font-black text-slate-800 mt-1">৳{selectedStats.lifetimeEarned.toFixed(2)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Balance + Paid</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approved Emails</div>
+                  <div className="text-xl font-black text-indigo-600 mt-1">{selectedStats.approvedEmails}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Verified Accounts</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Work Batches</div>
+                  <div className="text-xl font-black text-slate-800 mt-1">{selectedStats.totalSubsCount}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{selectedStats.pendingSubsCount} in queue</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Approval Rate</div>
+                  <div className="text-xl font-black text-emerald-600 mt-1">{selectedStats.approvalRate}%</div>
+                  <div className="w-full bg-slate-100 h-1.5 rounded-full mt-1 overflow-hidden">
+                    <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${selectedStats.approvalRate}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Referral Earnings</div>
+                  <div className="text-xl font-black text-blue-600 mt-1">৳{(selectedUser.referralEarnings || 0).toFixed(2)}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">{userRefs.length} downline members</div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Account Level</div>
+                  <div className="text-xl font-black text-purple-600 mt-1">Level {selectedUser.level || 1}</div>
+                  <div className="text-[11px] text-purple-400 mt-0.5">Commission tier</div>
+                </div>
+              </div>
+
+              {/* Technical & Registration Identity */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <Smartphone size={16} className="text-indigo-600" /> Device & Session Telemetry
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Registered Device</span>
+                      <span className="font-bold text-slate-700 break-words">{selectedUser.device || selectedUser.device_name || 'Generic Web / Android'}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Last Active Session</span>
+                      <span className="font-bold text-slate-700">{formatTime(selectedUser.last_login)}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">App Version</span>
+                      <span className="font-bold text-slate-700">{selectedUser.app_version || '1.0.0 (Latest)'}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Push Notification Token</span>
+                      <span className="font-bold text-slate-700 truncate block">
+                        {selectedUser.fcmToken || selectedUser.push_token ? '✓ Connected' : 'None Registered'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-3">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2 border-b border-slate-100 pb-2">
+                    <Calendar size={16} className="text-indigo-600" /> Account Lifecycle & Affiliation
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Registration Timestamp</span>
+                      <span className="font-bold text-slate-700">{formatTime(selectedUser.createdAt)}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Referral Code</span>
+                      <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded inline-block">
+                        {selectedUser.referralCode || 'N/A'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Referred By</span>
+                      <span className="font-bold text-slate-700 truncate block">
+                        {selectedUser.referredBy ? `UID: ${selectedUser.referredBy}` : 'Organic (Direct)'}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Security Status</span>
+                      <span className={`font-bold ${selectedUser.is_blocked ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {selectedUser.is_blocked ? 'Banned / Restricted' : 'Clean & Verified'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Jump Buttons to Sub-Tabs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  onClick={() => setActiveTab('submissions')}
+                  className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm text-left transition-all flex items-center justify-between group"
+                >
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm group-hover:text-indigo-600">View All Submissions</div>
+                    <div className="text-xs text-slate-400">{userSubs.length} total work records</div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('withdrawals')}
+                  className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm text-left transition-all flex items-center justify-between group"
+                >
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm group-hover:text-indigo-600">View Payout History</div>
+                    <div className="text-xs text-slate-400">৳{selectedStats.totalWithdrawn.toFixed(2)} paid in {userWiths.length} transactions</div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('referrals')}
+                  className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-sm text-left transition-all flex items-center justify-between group"
+                >
+                  <div>
+                    <div className="font-bold text-slate-800 text-sm group-hover:text-indigo-600">View Invited Users</div>
+                    <div className="text-xs text-slate-400">{userRefs.length} downline members</div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
+                </button>
+              </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-              <ActionBtn icon={<MessageSquare size={20}/>} label="Message User" onClick={()=>handleMessage(selectedUser)} color="blue" />
-              <ActionBtn icon={<Coins size={20}/>} label="Add / Cut Bal" onClick={()=>handleAddBal(selectedUser)} color="indigo" />
-              <ActionBtn icon={<ArrowUpCircle size={20}/>} label="Boost Level" onClick={()=>handleBoostLvl(selectedUser)} color="purple" />
-              <ActionBtn icon={<TrendingUp size={20}/>} label="Edit Ref Earn" onClick={()=>handleRefEarn(selectedUser)} color="emerald" />
-              
-              <ActionBtn icon={<Key size={20}/>} label="Reset Password" onClick={()=>handleResetPass(selectedUser)} color="amber" />
-              <ActionBtn icon={<List size={20}/>} label="View Subs" onClick={()=>handleViewSubs(selectedUser)} color="slate" />
-              <ActionBtn icon={<ShieldBan size={20}/>} label={selectedUser.is_blocked ? "Unban User" : "Ban User"} onClick={()=>handleBlock(selectedUser)} color={selectedUser.is_blocked ? "slate" : "red"} />
-              <ActionBtn icon={<Trophy size={20}/>} label={selectedUser.isTopSeller ? "Remove Top" : "Make Top Seller"} onClick={()=>handleTopSeller(selectedUser)} color={selectedUser.isTopSeller ? "slate" : "amber"} />
+          )}
+
+          {/* 2. SUBMISSIONS HISTORY TAB */}
+          {activeTab === 'submissions' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Inbox size={18} className="text-indigo-600" />
+                  All Work Batches Submitted by {selectedUser.username || 'this user'}
+                </div>
+                <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
+                  {userSubs.length} Total Submissions
+                </span>
+              </div>
+
+              {userSubs.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                  User has not submitted any email batches yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {userSubs.map((s: any) => (
+                    <div key={s.key} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider ${
+                            s.status === 'approved' 
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
+                              : s.status === 'pending'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                              : s.status === 'checking'
+                              ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                              : 'bg-red-100 text-red-800 border border-red-200'
+                          }`}>
+                            {s.status}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700 font-mono">#{s.key.substring(0, 10)}</span>
+                          <span className="text-xs text-slate-400">{formatTime(s.submittedAt)}</span>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-sm font-black text-emerald-600">৳{s.totalAmount || s.finalPayout || 0}</span>
+                          <span className="text-xs text-slate-400 ml-1.5">({s.gmails?.length || 1} Mails)</span>
+                        </div>
+                      </div>
+
+                      {/* Gmail Accounts list */}
+                      {s.gmails && s.gmails.length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {s.gmails.map((m: any, mIdx: number) => (
+                            <div key={mIdx} className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-xs flex justify-between items-center gap-2">
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">{m.email}</div>
+                                <div className="text-slate-500 font-mono truncate">Pass: {m.password}</div>
+                                {m.recoveryEmail && <div className="text-slate-400 text-[10px] truncate">Rec: {m.recoveryEmail}</div>}
+                              </div>
+                              <button onClick={() => copyToClipboard(`${m.email} | ${m.password}`, 'Credentials')} className="text-slate-400 hover:text-indigo-600 shrink-0">
+                                <Copy size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
+          )}
+
+          {/* 3. WITHDRAWALS TAB */}
+          {activeTab === 'withdrawals' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <Wallet size={18} className="text-indigo-600" />
+                  Payout Requests & Settlement History
+                </div>
+                <span className="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
+                  {userWiths.length} Total Requests
+                </span>
+              </div>
+
+              {userWiths.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                  User has no withdrawal records yet.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {userWiths.map((w: any) => (
+                    <div key={w.key} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-black text-slate-800">৳{w.amount}</span>
+                          <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase bg-indigo-50 text-indigo-700">
+                            {w.paymentMethod || w.method || 'bKash'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[11px] font-black uppercase ${
+                            w.status === 'approved' ? 'bg-emerald-100 text-emerald-800' :
+                            w.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {w.status}
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-500 mt-1">
+                          Account: <span className="font-bold text-slate-700">{w.paymentNumber || w.accountNumber || 'N/A'}</span>
+                          {w.trxId && <span className="ml-2 text-indigo-600 font-mono">TrxID: {w.trxId}</span>}
+                        </div>
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          Requested: {formatTime(w.requestedAt)}
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => copyToClipboard(w.paymentNumber || w.accountNumber, 'Account Number')}
+                        className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      >
+                        <Copy size={13} /> Copy Number
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4. REFERRALS TAB */}
+          {activeTab === 'referrals' && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200">
+                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  <UsersIcon size={18} className="text-indigo-600" />
+                  Users Invited by {selectedUser.username || 'this user'}
+                </div>
+                <span className="text-xs font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full">
+                  {userRefs.length} Downline Members
+                </span>
+              </div>
+
+              {userRefs.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
+                  This user has not referred any users yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {userRefs.map((refUser: any) => (
+                    <div 
+                      key={refUser.uid}
+                      onClick={() => setSelectedUser(refUser)}
+                      className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:border-indigo-300 hover:shadow-md cursor-pointer transition-all flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                          {refUser.username?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+                            {refUser.username || 'User'}
+                            {refUser.is_blocked && <span className="text-[10px] text-red-500 font-bold">(Blocked)</span>}
+                          </div>
+                          <div className="text-xs text-slate-400">{refUser.email || 'No email'}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">Joined: {formatTime(refUser.createdAt)}</div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="font-black text-emerald-600 text-sm">৳{(refUser.balance || 0).toFixed(2)}</div>
+                        <div className="text-[10px] text-slate-400">Balance</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 5. ADMIN CONTROLS TAB */}
+          {activeTab === 'actions' && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm space-y-6">
+              <div className="font-bold text-slate-800 text-base flex items-center gap-2 border-b border-slate-100 pb-3">
+                <ShieldBan size={20} className="text-indigo-600" /> Direct Account Controls & Permissions
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+                <button
+                  onClick={() => handleMessage(selectedUser)}
+                  className="p-4 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <MessageSquare size={22} />
+                  <span className="text-xs">Send Push Notification</span>
+                </button>
+
+                <button
+                  onClick={() => handleAddBal(selectedUser)}
+                  className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <Coins size={22} />
+                  <span className="text-xs">Adjust Main Balance</span>
+                </button>
+
+                <button
+                  onClick={() => handleHoldBal(selectedUser)}
+                  className="p-4 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <Wallet size={22} />
+                  <span className="text-xs">Adjust Hold Balance</span>
+                </button>
+
+                <button
+                  onClick={() => handleBoostLvl(selectedUser)}
+                  className="p-4 rounded-xl bg-purple-50 border border-purple-200 hover:bg-purple-100 text-purple-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <ArrowUpCircle size={22} />
+                  <span className="text-xs">Promote / Change Level</span>
+                </button>
+
+                <button
+                  onClick={() => handleRefEarn(selectedUser)}
+                  className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 text-indigo-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <TrendingUp size={22} />
+                  <span className="text-xs">Edit Ref Earnings</span>
+                </button>
+
+                <button
+                  onClick={() => handleResetPass(selectedUser)}
+                  className="p-4 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center"
+                >
+                  <Key size={22} />
+                  <span className="text-xs">Send Password Reset</span>
+                </button>
+
+                <button
+                  onClick={() => handleTopSeller(selectedUser)}
+                  className={`p-4 rounded-xl border font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center ${
+                    selectedUser.isTopSeller
+                      ? 'bg-slate-100 border-slate-300 text-slate-700'
+                      : 'bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  <Trophy size={22} />
+                  <span className="text-xs">{selectedUser.isTopSeller ? 'Remove Top Seller' : 'Make Top Seller'}</span>
+                </button>
+
+                <button
+                  onClick={() => handleBlock(selectedUser)}
+                  className={`p-4 rounded-xl border font-bold flex flex-col items-center justify-center gap-2 transition-colors text-center ${
+                    selectedUser.is_blocked
+                      ? 'bg-slate-100 border-slate-300 text-slate-700'
+                      : 'bg-red-50 border-red-200 hover:bg-red-100 text-red-700'
+                  }`}
+                >
+                  <ShieldBan size={22} />
+                  <span className="text-xs">{selectedUser.is_blocked ? 'Unban Account' : 'Ban / Restrict User'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
   }
 
+  // MAIN ALL USERS DIRECTORY VIEW
   return (
-    <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col relative flex-1">
-      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
-        <h2 className="font-bold text-slate-800 flex items-center gap-2">
-          <UsersIcon className="text-indigo-500" />
-          All Registered Users
-        </h2>
-        <button onClick={exportCSV} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold hover:bg-slate-50 transition-colors shadow-sm">
-          <Download size={16} /> Export CSV
+    <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col flex-1">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+        <div>
+          <h2 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
+            <UsersIcon className="text-indigo-600" />
+            Registered Users Intelligence
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Realtime directory of {usersWithStats.length} user accounts with full financial & work telemetry
+          </p>
+        </div>
+
+        <button 
+          onClick={exportCSV} 
+          className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm text-slate-700"
+        >
+          <Download size={15} /> Export Detailed CSV
         </button>
       </div>
-      
-      <div className="p-4 sm:p-5 border-b border-slate-100 shrink-0 space-y-4">
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search Name, Email, or UID..." 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-          />
+
+      {/* Filter and Search Controls */}
+      <div className="p-4 sm:p-5 border-b border-slate-100 shrink-0 space-y-3 bg-white">
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search by Name, Email, UID, Phone, Device, or Referral Code..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium text-sm text-slate-800"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600">
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Sort By Dropdown */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <ArrowUpDown size={14} /> Sort:
+            </div>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl px-3 py-2.5 outline-none focus:border-indigo-500 cursor-pointer"
+            >
+              <option value="newest">Newest Registered</option>
+              <option value="oldest">Oldest Registered</option>
+              <option value="balance_high">Highest Balance</option>
+              <option value="withdrawn_high">Highest Withdrawn</option>
+              <option value="approved_high">Most Approved Emails</option>
+              <option value="subs_high">Most Submissions</option>
+              <option value="refs_high">Most Referrals</option>
+              <option value="last_login">Recently Active</option>
+            </select>
+          </div>
         </div>
-        
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          <button onClick={()=>setFilter('all')} className={`px-4 py-1.5 rounded-lg text-sm font-bold shrink-0 transition-colors ${filter==='all'?'bg-indigo-100 text-indigo-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>All</button>
-          <button onClick={()=>setFilter('active')} className={`px-4 py-1.5 rounded-lg text-sm font-bold shrink-0 transition-colors ${filter==='active'?'bg-emerald-100 text-emerald-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>Active Today</button>
-          <button onClick={()=>setFilter('blocked')} className={`px-4 py-1.5 rounded-lg text-sm font-bold shrink-0 transition-colors ${filter==='blocked'?'bg-red-100 text-red-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>Blocked</button>
-          <button onClick={()=>setFilter('top')} className={`px-4 py-1.5 rounded-lg text-sm font-bold shrink-0 transition-colors ${filter==='top'?'bg-amber-100 text-amber-700':'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}>Top Sellers</button>
+
+        {/* Filter Pills */}
+        <div className="flex gap-2 overflow-x-auto pb-1 text-xs font-bold">
+          <button 
+            onClick={() => setFilter('all')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'all' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            All Users ({usersWithStats.length})
+          </button>
+
+          <button 
+            onClick={() => setFilter('active')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'active' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+            }`}
+          >
+            Active Today (24h)
+          </button>
+
+          <button 
+            onClick={() => setFilter('new')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'new' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+            }`}
+          >
+            New Users (24h)
+          </button>
+
+          <button 
+            onClick={() => setFilter('pending_subs')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'pending_subs' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+            }`}
+          >
+            Has Pending Work
+          </button>
+
+          <button 
+            onClick={() => setFilter('pending_withs')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'pending_withs' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
+            }`}
+          >
+            Has Pending Payout
+          </button>
+
+          <button 
+            onClick={() => setFilter('top')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'top' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+            }`}
+          >
+            Top Sellers
+          </button>
+
+          <button 
+            onClick={() => setFilter('blocked')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'blocked' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
+            }`}
+          >
+            Banned ({usersWithStats.filter((u: any) => u.is_blocked).length})
+          </button>
+
+          <button 
+            onClick={() => setFilter('high_earners')} 
+            className={`px-3.5 py-1.5 rounded-lg shrink-0 transition-colors ${
+              filter === 'high_earners' ? 'bg-purple-600 text-white' : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+            }`}
+          >
+            High Earners (৳500+)
+          </button>
         </div>
       </div>
-      
-      <div className="flex-1 overflow-y-auto bg-slate-50/30">
-        {list.length === 0 && <div className="text-center text-slate-500 py-10 font-medium">No users found matching your criteria.</div>}
-        {list.map((u: any) => (
-          <div key={u.uid} onClick={() => setSelectedUser(u)} className="flex items-center justify-between p-4 px-6 border-b border-slate-100 bg-white hover:bg-slate-50 cursor-pointer transition-colors group">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xl shrink-0 group-hover:scale-105 transition-transform overflow-hidden relative">{u.photoURL ? (  <img src={u.photoURL} alt={u.username} className="w-full h-full object-cover absolute inset-0" onError={(e: any) => { e.currentTarget.style.display = 'none'; }} />) : null}<span className={u.photoURL ? 'opacity-0' : ''}>{u.username?.charAt(0)?.toUpperCase() || 'U'}</span></div>
+
+      {/* Users List Body */}
+      <div className="flex-1 overflow-y-auto bg-slate-50/30 divide-y divide-slate-100">
+        {filteredUsers.length === 0 && (
+          <div className="text-center py-16 space-y-2">
+            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+              <UserCheck size={24} />
+            </div>
+            <div className="font-bold text-slate-700">No users found</div>
+            <div className="text-xs text-slate-400">Try adjusting your search query or filter tags.</div>
+          </div>
+        )}
+
+        {filteredUsers.map((u: any) => (
+          <div 
+            key={u.uid} 
+            onClick={() => setSelectedUser(u)} 
+            className="p-4 sm:px-6 bg-white hover:bg-indigo-50/30 cursor-pointer transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 group"
+          >
+            {/* Left: User Identity & Avatar */}
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-black text-lg shrink-0 group-hover:scale-105 transition-transform overflow-hidden relative shadow-sm">
+                {u.photoURL ? (
+                  <img src={u.photoURL} alt={u.username} className="w-full h-full object-cover absolute inset-0" onError={(e: any) => { e.currentTarget.style.display = 'none'; }} />
+                ) : null}
+                <span className={u.photoURL ? 'opacity-0' : ''}>{u.username?.charAt(0)?.toUpperCase() || 'U'}</span>
+              </div>
+
               <div className="min-w-0">
-                <div className="font-bold text-slate-800 text-base flex items-center gap-2 truncate">
-                  <span className={u.is_blocked ? 'text-red-500 line-through opacity-80' : 'text-slate-800 group-hover:text-indigo-600 transition-colors'}>{u.username || 'User'}</span>
-                  {u.is_blocked && <span className="px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wider bg-red-100 text-red-700">Blocked</span>}
-                  {u.isTopSeller && <span className="px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wider bg-amber-100 text-amber-700">Top Seller</span>}
-                  {u.createdAt && (Date.now() - new Date(u.createdAt).getTime() < 24 * 60 * 60 * 1000) && <span className="px-2 py-0.5 rounded-md text-[10px] uppercase font-bold tracking-wider bg-red-100 text-red-600 border border-red-200 animate-pulse shadow-sm">24h New</span>}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={`font-bold text-sm sm:text-base ${u.is_blocked ? 'text-red-500 line-through' : 'text-slate-900 group-hover:text-indigo-600 transition-colors'}`}>
+                    {u.username || 'User'}
+                  </span>
+                  
+                  {u.is_blocked && <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-red-100 text-red-700">Banned</span>}
+                  {u.isTopSeller && <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-100 text-amber-700">Top</span>}
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-100 text-purple-700">Lv-{u.level || 1}</span>
+                  
+                  {u.createdAt && (Date.now() - new Date(u.createdAt).getTime() < 24 * 60 * 60 * 1000) && (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-black bg-red-100 text-red-600 border border-red-200 animate-pulse">24h New</span>
+                  )}
                 </div>
-                <div className="text-sm text-slate-500 truncate flex items-center gap-1.5 mt-0.5">
-                  <Mail size={14} className="text-slate-400"/>
-                  {u.email || 'N/A'}
+
+                <div className="text-xs text-slate-500 flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+                  <span className="truncate flex items-center gap-1">
+                    <Mail size={12} className="text-slate-400" /> {u.email || 'N/A'}
+                  </span>
+                  <span className="font-mono text-slate-400 text-[11px] hidden sm:inline-block">
+                    UID: {u.uid.substring(0, 10)}...
+                  </span>
+                  <span className="text-[11px] text-slate-400 hidden lg:inline-block">
+                    Joined: {u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-GB') : 'N/A'}
+                  </span>
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-6 text-right shrink-0">
-              <div className="hidden sm:block">
-                <div className="font-black text-emerald-600 text-lg leading-tight">৳{(u.balance || 0).toFixed(2)}</div>
-                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Balance</div>
+
+            {/* Right: Rich Stats Badges */}
+            <div className="flex items-center justify-between md:justify-end gap-3 sm:gap-6 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100">
+              
+              <div className="text-left md:text-right">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Emails</div>
+                <div className="font-extrabold text-slate-800 text-sm">
+                  {u.approvedEmails} <span className="text-[10px] text-slate-400 font-normal">/ {u.totalSubsCount} subs</span>
+                </div>
               </div>
-              <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-500 transition-all group-hover:translate-x-1" />
+
+              <div className="text-left md:text-right">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Withdrawn</div>
+                <div className="font-extrabold text-indigo-600 text-sm">৳{u.totalWithdrawn.toFixed(0)}</div>
+              </div>
+
+              <div className="text-right">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Balance</div>
+                <div className="font-black text-emerald-600 text-base sm:text-lg">৳{(u.balance || 0).toFixed(2)}</div>
+              </div>
+
+              <div className="hidden sm:flex items-center text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all pl-2">
+                <ChevronRight size={20} />
+              </div>
+
             </div>
           </div>
         ))}

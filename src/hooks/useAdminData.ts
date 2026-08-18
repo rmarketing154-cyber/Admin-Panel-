@@ -2,13 +2,14 @@ import { useEffect, useState, useRef } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../lib/firebase';
 
-export function useAdminData() {
+export function useAdminData(user: any) {
   const [data, setData] = useState({
     users: [],
     submissions: [],
     withdraws: [],
     settings: null,
     topSellers: [],
+    topReferrals: [],
     reviews: [],
     chats: [],
     history: []
@@ -21,6 +22,22 @@ export function useAdminData() {
   const knownChatIds = useRef(new Set());
 
   useEffect(() => {
+    if (!user) {
+      setData({
+        users: [],
+        submissions: [],
+        withdraws: [],
+        settings: null,
+        topSellers: [],
+        topReferrals: [],
+        reviews: [],
+        chats: [],
+        history: []
+      });
+      setLoading(true);
+      return;
+    }
+
     // Request notification permission
     if ("Notification" in window) {
       Notification.requestPermission();
@@ -95,6 +112,15 @@ export function useAdminData() {
         setData(prev => ({ ...prev, topSellers }));
       }),
 
+      onValue(ref(db, "top_referrals"), (snap) => {
+        const topReferrals: any[] = [];
+        if (snap.exists()) {
+          const trData = snap.val();
+          Object.values(trData).forEach(v => topReferrals.push(v));
+        }
+        setData(prev => ({ ...prev, topReferrals }));
+      }),
+
       onValue(ref(db, "reviews"), (snap) => {
         const reviews: any[] = [];
         snap.forEach(c => { reviews.push({ key: c.key, ...c.val() }); });
@@ -137,7 +163,7 @@ export function useAdminData() {
     ];
 
     return () => unsubs.forEach(u => u());
-  }, []);
+  }, [user]);
 
   return { ...data, loading };
 }
