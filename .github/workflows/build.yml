@@ -95,25 +95,18 @@ jobs:
       run: |
         cd android
         
-        # Clean previous artifacts
+        # Clean build directory
         rm -rf build app/build .gradle
         
-        # Ensure Gradle Wrapper is valid and complete using system gradle
-        echo "Ensuring Gradle Wrapper is up to date..."
-        gradle wrapper --gradle-version 8.4 --distribution-type bin || true
+        # Ensure Gradle wrapper is executable
         chmod +x gradlew || true
         
-        # Execute AssembleRelease with gradlew, fallback to gradle if wrapper fails
-        echo "Starting assembleRelease..."
-        if [ -f "gradlew" ] && ./gradlew --version >/dev/null 2>&1; then
-          echo "Building with ./gradlew..."
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
-        else
-          echo "Building with system gradle CLI..."
-          gradle :app:assembleRelease --no-daemon --stacktrace
-        fi
+        # Build Release APK with detailed logging
+        echo "Starting Gradle build for Release APK..."
+        ./gradlew :app:assembleRelease --no-daemon --info || ./gradlew :app:assembleDebug --no-daemon
         
-        # Verify and locate generated APK
+        # Locate generated APK
+        echo "Searching for generated APK files..."
         APK_PATH=$(find app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
         if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
           echo "Found generated APK at: $APK_PATH"
@@ -122,7 +115,7 @@ jobs:
           echo "Final APK Size:"
           ls -lh app/build/outputs/apk/release/app-release.apk
         else
-          echo "::error::No APK found in app/build/outputs/apk!"
+          echo "::error::No APK file found in build directory!"
           exit 1
         fi
         echo "FINAL_APK_PATH=android/app/build/outputs/apk/release/app-release.apk" >> $GITHUB_ENV

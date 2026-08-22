@@ -24,7 +24,7 @@ android {
     signingConfigs {
         create("release") {
             val envPath = System.getenv("KEYSTORE_FILE")
-            val keystoreFile = if (!envPath.isNullOrEmpty()) file(envPath) else rootProject.file("keystore/release.jks")
+            val keystoreFile = if (!envPath.isNullOrEmpty()) file(envPath) else file("../keystore/release.jks")
             val storePass = System.getenv("KEYSTORE_PASSWORD") ?: "@RonyX154"
             val keyAl = System.getenv("KEY_ALIAS") ?: "mailfactory_admin"
             val keyPass = System.getenv("KEY_PASSWORD") ?: "@RonyX154"
@@ -35,8 +35,6 @@ android {
                 keyAlias = keyAl
                 keyPassword = keyPass
                 println("Release signing configuration: Keystore found at ${keystoreFile.absolutePath}")
-            } else {
-                println("Release signing configuration: Keystore NOT found, build will proceed unsigned")
             }
         }
     }
@@ -49,8 +47,10 @@ android {
                 "proguard-rules.pro"
             )
             val releaseSigning = signingConfigs.findByName("release")
-            if (releaseSigning?.storeFile?.exists() == true) {
+            if (releaseSigning?.storeFile != null && releaseSigning.storeFile!!.exists()) {
                 signingConfig = releaseSigning
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
         debug {
