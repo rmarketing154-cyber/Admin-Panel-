@@ -6,7 +6,7 @@ import { Star, Plus, Check, X, Trash2, Search, User, Calendar, MessageSquare, Th
 
 export default function Reviews({ data }: any) {
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'approved' | 'pending'>('all');
+  const [filter, setFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
 
   const usersMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -26,8 +26,9 @@ export default function Reviews({ data }: any) {
       };
     }).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    if (filter === 'approved') list = list.filter((r: any) => r.approved);
-    if (filter === 'pending') list = list.filter((r: any) => !r.approved);
+    if (filter === 'approved') list = list.filter((r: any) => r.approved || r.status === 'approved');
+    if (filter === 'pending') list = list.filter((r: any) => (!r.approved && r.status !== 'rejected') || r.status === 'pending');
+    if (filter === 'rejected') list = list.filter((r: any) => r.status === 'rejected');
 
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -40,8 +41,7 @@ export default function Reviews({ data }: any) {
     return list;
   }, [data.reviews, usersMap, filter, search]);
 
-  const toggleApproval = async (key: string, curr: boolean) => {
-    // Write to all possible review paths to guarantee compatibility with user apps
+  const updateReviewStatus = async (key: string, newStatus: 'approved' | 'rejected' | 'pending') => {
     const paths = [
       `reviews/${key}`,
       `review/${key}`,
@@ -53,12 +53,15 @@ export default function Reviews({ data }: any) {
     ];
     
     try {
-      await Promise.all(paths.map(path => update(ref(db, path), { approved: !curr })));
+      await Promise.all(paths.map(path => update(ref(db, path), { 
+        approved: newStatus === 'approved',
+        status: newStatus 
+      })));
       Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'success',
-        title: !curr ? 'Review Approved Live' : 'Review set to Pending',
+        title: newStatus === 'approved' ? 'Review Approved Live' : (newStatus === 'rejected' ? 'Review Rejected' : 'Review set to Pending'),
         showConfirmButton: false,
         timer: 1500
       });
@@ -211,7 +214,7 @@ export default function Reviews({ data }: any) {
               filter === 'approved' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
             }`}
           >
-            Approved ({(data.reviews || []).filter((r: any) => r.approved).length})
+            Approved ({(data.reviews || []).filter((r: any) => r.approved || r.status === 'approved').length})
           </button>
           <button
             onClick={() => setFilter('pending')}
@@ -219,7 +222,15 @@ export default function Reviews({ data }: any) {
               filter === 'pending' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
             }`}
           >
-            Pending ({(data.reviews || []).filter((r: any) => !r.approved).length})
+            Pending ({(data.reviews || []).filter((r: any) => (!r.approved && r.status !== 'rejected') || r.status === 'pending').length})
+          </button>
+          <button
+            onClick={() => setFilter('rejected')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+              filter === 'rejected' ? 'bg-red-600 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
+            }`}
+          >
+            Rejected ({(data.reviews || []).filter((r: any) => r.status === 'rejected').length})
           </button>
         </div>
       </div>
@@ -261,9 +272,10 @@ export default function Reviews({ data }: any) {
               </div>
 
               <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${
-                r.approved ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                (r.approved || r.status === 'approved') ? 'bg-emerald-100 text-emerald-800' : 
+                (r.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800')
               }`}>
-                {r.approved ? 'Publicly Visible' : 'Pending Approval'}
+                {(r.approved || r.status === 'approved') ? 'Publicly Visible' : (r.status === 'rejected' ? 'Rejected' : 'Pending Approval')}
               </span>
             </div>
             
@@ -271,19 +283,23 @@ export default function Reviews({ data }: any) {
               "{r.comment || r.message || ''}"
             </p>
             
-            <div className="flex gap-2 pt-1">
-              <button 
-                onClick={() => toggleApproval(r.key, r.approved)} 
-                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-colors ${
-                  r.approved 
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200' 
-                    : 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
-                }`}
-              >
-                {r.approved ? <X size={14} /> : <Check size={14} />}
-                {r.approved ? 'Hide / Unapprove' : 'Approve & Display in App'}
-              </button>
-
+            <div className="flex flex-wrap gap-2 pt-1">
+              {(r.status !== 'approved' && !r.approved) && (
+                <button 
+                  onClick={() => updateReviewStatus(r.key, 'approved')} 
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-colors bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                >
+                  <Check size={14} /> Approve & Display
+                </button>
+              )}
+              {r.status !== 'rejected' && (
+                <button 
+                  onClick={() => updateReviewStatus(r.key, 'rejected')} 
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                >
+                  <X size={14} /> Reject & Hide
+                </button>
+              )}
               <button 
                 onClick={() => deleteReview(r.key)} 
                 className="px-4 py-2.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors flex items-center justify-center"
