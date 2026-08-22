@@ -9,16 +9,13 @@ import {
   Check,
   RefreshCw,
   ToggleLeft,
-  ToggleRightCircle, 
+  ToggleRight, 
   XCircle, 
+  CheckCircle2,
   Inbox, 
   Search, 
   Filter, 
   Copy, 
-  Check,
-  RefreshCw,
-  ToggleLeft,
-  ToggleRightCheck, 
   User, 
   Mail, 
   Calendar, 
@@ -27,11 +24,7 @@ import {
   AlertTriangle,
   History,
   Download,
-  Eye,
-  Check,
-  RefreshCw,
-  ToggleLeft,
-  ToggleRight
+  Eye
 } from 'lucide-react';
 
 export default function Submissions({ data, type = 'pending' }: any) {
@@ -602,7 +595,7 @@ export default function Submissions({ data, type = 'pending' }: any) {
                         onClick={() => approveSubmission(s)} 
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-4 px-6 rounded-2xl flex items-center justify-center gap-2 text-sm transition-all shadow-md shadow-emerald-600/10 active:scale-[0.99]"
                       >
-                        <CheckCircle size={18} className="stroke-[2.5]" />
+                        <CheckCircle2 size={18} className="stroke-[2.5]" />
                         <span>Approve Selected ({selectedCount})</span>
                       </button>
                       <button 
@@ -617,7 +610,7 @@ export default function Submissions({ data, type = 'pending' }: any) {
 
                   {subType === 'approved' && (
                     <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 text-xs font-semibold text-emerald-800 flex items-center gap-2">
-                      <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+                      <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
                       <span>Approved {s.approvedCount || emailCount} out of {emailCount} accounts (Payout: ৳{s.finalPayout || s.totalAmount || 0})</span>
                     </div>
                   )}

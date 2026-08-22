@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { ref, onValue } from 'firebase/database';
 import { db } from '../lib/firebase';
+import { soundAlerts } from '../lib/sound';
 
 export function useAdminData(user: any) {
   const [refreshKey, setRefreshKey] = useState(0);
@@ -18,10 +19,45 @@ export function useAdminData(user: any) {
   });
 
   const [loading, setLoading] = useState(true);
-  const initialLoadDone = useRef(false);
+  const settingsRef = useRef<any>(null);
   const knownSubmissionIds = useRef(new Set());
   const knownWithdrawIds = useRef(new Set());
   const knownChatIds = useRef(new Set());
+  const knownNotifIds = useRef(new Set());
+
+  // Helper to check if audio alert is enabled for specific categories
+  const shouldPlayAudio = (category: 'submissions' | 'push_notif' | 'withdrawals' | 'chats') => {
+    const s = settingsRef.current || {};
+    
+    // Master audio switch check (Firebase setting or localStorage fallback)
+    const masterEnabled = s.audio_alert_enabled !== undefined 
+      ? s.audio_alert_enabled 
+      : (localStorage.getItem('audio_alert_enabled') !== 'false');
+
+    if (!masterEnabled) return false;
+
+    // Category specific check
+    switch (category) {
+      case 'submissions':
+        return s.audio_submissions !== undefined 
+          ? s.audio_submissions 
+          : (localStorage.getItem('audio_submissions') !== 'false');
+      case 'push_notif':
+        return s.audio_push_notif !== undefined 
+          ? s.audio_push_notif 
+          : (localStorage.getItem('audio_push_notif') !== 'false');
+      case 'withdrawals':
+        return s.audio_withdrawals !== undefined 
+          ? s.audio_withdrawals 
+          : (localStorage.getItem('audio_withdrawals') !== 'false');
+      case 'chats':
+        return s.audio_chats !== undefined 
+          ? s.audio_chats 
+          : (localStorage.getItem('audio_chats') !== 'false');
+      default:
+        return true;
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -55,6 +91,7 @@ export function useAdminData(user: any) {
     let isFirstSub = true;
     let isFirstWd = true;
     let isFirstChat = true;
+    let isFirstNotif = true;
 
     const unsubs = [
       onValue(ref(db, "users"), (snap) => {
@@ -65,15 +102,16 @@ export function useAdminData(user: any) {
 
       onValue(ref(db, "submissions"), (snap) => {
         const submissions: any[] = [];
-        let newCount = 0;
         snap.forEach(c => {
           const s = { key: c.key, ...c.val() };
           submissions.push(s);
           
           if (!isFirstSub && !knownSubmissionIds.current.has(c.key)) {
-            newCount++;
             if (s.status === 'pending') {
-               notify('New Submission!', `User ${s.username || 'Someone'} submitted new accounts.`);
+              notify('New Submission!', `User ${s.username || 'Someone'} submitted new accounts.`);
+              if (shouldPlayAudio('submissions')) {
+                soundAlerts.playSubmissionAlert();
+              }
             }
           }
           knownSubmissionIds.current.add(c.key);
@@ -92,6 +130,9 @@ export function useAdminData(user: any) {
           if (!isFirstWd && !knownWithdrawIds.current.has(c.key)) {
             if (w.status === 'pending') {
               notify('New Withdraw Request!', `৳${w.amount} via ${w.paymentMethod || 'bkash'}`);
+              if (shouldPlayAudio('withdrawals')) {
+                soundAlerts.playWithdrawalAlert();
+              }
             }
           }
           knownWithdrawIds.current.add(c.key);
@@ -102,7 +143,26 @@ export function useAdminData(user: any) {
       }),
 
       onValue(ref(db, "settings"), (snap) => {
-        setData(prev => ({ ...prev, settings: snap.val() }));
+        const sVal = snap.val();
+        settingsRef.current = sVal;
+        setData(prev => ({ ...prev, settings: sVal }));
+      }),
+
+      onValue(ref(db, "admin_notifications"), (snap) => {
+        if (snap.exists()) {
+          snap.forEach(c => {
+            const notifKey = c.key;
+            const notifVal = c.val() || {};
+            if (!isFirstNotif && notifKey && !knownNotifIds.current.has(notifKey)) {
+              notify(notifVal.title || 'Push Notification', notifVal.message || notifVal.body || 'New alert received');
+              if (shouldPlayAudio('push_notif')) {
+                soundAlerts.playPushNotificationAlert();
+              }
+            }
+            if (notifKey) knownNotifIds.current.add(notifKey);
+          });
+        }
+        isFirstNotif = false;
       }),
 
       onValue(ref(db, "top_sellers"), (snap) => {
@@ -150,6 +210,9 @@ export function useAdminData(user: any) {
           chats.push({ uid: c.key, lastMsg, unread, msgs });
           if (newMsgs) {
             notify('New Support Message', lastMsg?.message || 'You have a new message');
+            if (shouldPlayAudio('chats')) {
+              soundAlerts.playChatAlert();
+            }
           }
         });
         setData(prev => ({ ...prev, chats }));

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ref, update, set, push } from 'firebase/database';
 import { db } from '../lib/firebase';
+import { soundAlerts } from '../lib/sound';
 import Swal from 'sweetalert2';
-import { Coins, Save, Plus, X, BellRing, Smartphone, Send, ShieldCheck } from 'lucide-react';
+import { Coins, Save, Plus, X, BellRing, Smartphone, Send, ShieldCheck, Volume2, VolumeX, Play } from 'lucide-react';
 
 export default function Settings({ data }: any) {
   const s = data.settings || {};
@@ -25,15 +26,40 @@ export default function Settings({ data }: any) {
     reportNotif: s.notif_report ?? true,
   });
 
+  const [audioSettings, setAudioSettings] = useState({
+    audioMaster: s.audio_alert_enabled !== undefined ? s.audio_alert_enabled : (localStorage.getItem('audio_alert_enabled') !== 'false'),
+    audioSubmissions: s.audio_submissions !== undefined ? s.audio_submissions : (localStorage.getItem('audio_submissions') !== 'false'),
+    audioPushNotif: s.audio_push_notif !== undefined ? s.audio_push_notif : (localStorage.getItem('audio_push_notif') !== 'false'),
+    audioWithdrawals: s.audio_withdrawals !== undefined ? s.audio_withdrawals : (localStorage.getItem('audio_withdrawals') !== 'false'),
+    audioChats: s.audio_chats !== undefined ? s.audio_chats : (localStorage.getItem('audio_chats') !== 'false'),
+  });
+
   const [levels, setLevels] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (s.levels) {
       setLevels(s.levels);
     }
-  }, [s.levels]);
+    if (s.audio_alert_enabled !== undefined) {
+      setAudioSettings(prev => ({
+        ...prev,
+        audioMaster: s.audio_alert_enabled,
+        audioSubmissions: s.audio_submissions ?? prev.audioSubmissions,
+        audioPushNotif: s.audio_push_notif ?? prev.audioPushNotif,
+        audioWithdrawals: s.audio_withdrawals ?? prev.audioWithdrawals,
+        audioChats: s.audio_chats ?? prev.audioChats,
+      }));
+    }
+  }, [s]);
 
   const saveSettings = async () => {
+    // Sync audio preferences to localStorage for persistent browser state
+    localStorage.setItem('audio_alert_enabled', String(audioSettings.audioMaster));
+    localStorage.setItem('audio_submissions', String(audioSettings.audioSubmissions));
+    localStorage.setItem('audio_push_notif', String(audioSettings.audioPushNotif));
+    localStorage.setItem('audio_withdrawals', String(audioSettings.audioWithdrawals));
+    localStorage.setItem('audio_chats', String(audioSettings.audioChats));
+
     await update(ref(db, "settings"), {
       signup_bonus_user: Number(rates.userBonus),
       signup_bonus_referrer: Number(rates.refBonus),
@@ -47,9 +73,14 @@ export default function Settings({ data }: any) {
       notif_withdrawal: notifSettings.withdrawalNotif,
       notif_new_user: notifSettings.newUserNotif,
       notif_report: notifSettings.reportNotif,
+      audio_alert_enabled: audioSettings.audioMaster,
+      audio_submissions: audioSettings.audioSubmissions,
+      audio_push_notif: audioSettings.audioPushNotif,
+      audio_withdrawals: audioSettings.audioWithdrawals,
+      audio_chats: audioSettings.audioChats,
       levels: levels
     });
-    Swal.fire('Saved', 'All system & notification settings updated successfully!', 'success');
+    Swal.fire('Saved', 'All system, push notification & audio alert settings saved successfully!', 'success');
   };
 
   const testAdminPush = async (type: string, title: string, body: string) => {
@@ -84,9 +115,9 @@ export default function Settings({ data }: any) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col flex-1">
+    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col flex-1">
       <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2 font-bold text-slate-800">
-        <Coins className="text-amber-500" size={20} /> Financial Rates & Levels
+        <Coins className="text-amber-500" size={20} /> Financial Rates &amp; Levels
       </div>
       
       <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
@@ -180,6 +211,202 @@ export default function Settings({ data }: any) {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Audio & Sound Alerts Settings for Panel */}
+        <div className="pt-6 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Volume2 className="text-indigo-600" size={20} />
+              <h3 className="font-bold text-slate-800 text-base">Audio &amp; Sound Alerts (Panel)</h3>
+            </div>
+            <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${audioSettings.audioMaster ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+              {audioSettings.audioMaster ? 'Sound Enabled' : 'Muted'}
+            </span>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
+            {/* Master Audio Switch */}
+            <div className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs">
+              <div>
+                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                  {audioSettings.audioMaster ? <Volume2 size={18} className="text-indigo-600" /> : <VolumeX size={18} className="text-slate-400" />}
+                  Master Audio Alert Sound
+                </div>
+                <div className="text-xs text-slate-500 mt-0.5">Play real-time audio chimes when new user submissions, push alerts, or cashouts arrive in admin panel</div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={audioSettings.audioMaster} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAudioSettings({...audioSettings, audioMaster: val});
+                    localStorage.setItem('audio_alert_enabled', String(val));
+                    if (val) {
+                      soundAlerts.playSubmissionAlert();
+                    }
+                  }} 
+                  className="sr-only peer" 
+                />
+                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            {/* Sub Categories */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Submissions Sound */}
+              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    type="button" 
+                    onClick={() => soundAlerts.playSubmissionAlert()} 
+                    title="Preview Sound"
+                    className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors"
+                  >
+                    <Play size={14} />
+                  </button>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">📥 New User Submissions Audio</div>
+                    <div className="text-[11px] text-slate-500">Chime on new Gmail / account submission</div>
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={audioSettings.audioSubmissions} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAudioSettings({...audioSettings, audioSubmissions: val});
+                    localStorage.setItem('audio_submissions', String(val));
+                  }} 
+                  disabled={!audioSettings.audioMaster}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
+                />
+              </div>
+
+              {/* Push Notification Sound */}
+              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    type="button" 
+                    onClick={() => soundAlerts.playPushNotificationAlert()} 
+                    title="Preview Sound"
+                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
+                  >
+                    <Play size={14} />
+                  </button>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">🔔 Push Notifications &amp; Alerts Audio</div>
+                    <div className="text-[11px] text-slate-500">Alert tone on push broadcast &amp; system alerts</div>
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={audioSettings.audioPushNotif} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAudioSettings({...audioSettings, audioPushNotif: val});
+                    localStorage.setItem('audio_push_notif', String(val));
+                  }} 
+                  disabled={!audioSettings.audioMaster}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
+                />
+              </div>
+
+              {/* Withdrawals Sound */}
+              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    type="button" 
+                    onClick={() => soundAlerts.playWithdrawalAlert()} 
+                    title="Preview Sound"
+                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors"
+                  >
+                    <Play size={14} />
+                  </button>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">💰 Withdrawal Requests Audio</div>
+                    <div className="text-[11px] text-slate-500">Cashout request audio notification</div>
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={audioSettings.audioWithdrawals} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAudioSettings({...audioSettings, audioWithdrawals: val});
+                    localStorage.setItem('audio_withdrawals', String(val));
+                  }} 
+                  disabled={!audioSettings.audioMaster}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
+                />
+              </div>
+
+              {/* Support Chat Sound */}
+              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-2.5">
+                  <button 
+                    type="button" 
+                    onClick={() => soundAlerts.playChatAlert()} 
+                    title="Preview Sound"
+                    className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors"
+                  >
+                    <Play size={14} />
+                  </button>
+                  <div>
+                    <div className="font-bold text-slate-800 text-xs">💬 Live Support Message Audio</div>
+                    <div className="text-[11px] text-slate-500">Ping when user sends support message</div>
+                  </div>
+                </div>
+                <input 
+                  type="checkbox" 
+                  checked={audioSettings.audioChats} 
+                  onChange={e => {
+                    const val = e.target.checked;
+                    setAudioSettings({...audioSettings, audioChats: val});
+                    localStorage.setItem('audio_chats', String(val));
+                  }} 
+                  disabled={!audioSettings.audioMaster}
+                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
+                />
+              </div>
+            </div>
+
+            {/* Test Audio Alert Sounds */}
+            <div className="pt-2">
+              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Test Panel Audio Sounds</div>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  type="button"
+                  onClick={() => soundAlerts.playSubmissionAlert()} 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  <Play size={12} /> Test Submission Chime
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => soundAlerts.playPushNotificationAlert()} 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  <Play size={12} /> Test Push Alert Tone
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => soundAlerts.playWithdrawalAlert()} 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  <Play size={12} /> Test Cashout Ding
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => soundAlerts.playChatAlert()} 
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-colors"
+                >
+                  <Play size={12} /> Test Chat Ping
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -303,7 +530,7 @@ export default function Settings({ data }: any) {
         </div>
 
         <button onClick={saveSettings} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
-          <Save size={18} /> Save System &amp; Notification Settings
+          <Save size={18} /> Save All Rates, Audio &amp; Notification Settings
         </button>
       </div>
     </div>

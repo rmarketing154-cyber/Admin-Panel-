@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { Menu, X, Cpu, LogOut, LayoutDashboard, Inbox, CheckCircle2, Wallet, Users, Trophy, Star, Settings, MessageSquare, BellRing, Network, Coins, CreditCard, Clock, Megaphone, ScrollText } from 'lucide-react';
+import { Menu, X, Cpu, LogOut, LayoutDashboard, Inbox, CheckCircle2, Wallet, Users, Trophy, Star, Settings, MessageSquare, BellRing, Network, Coins, CreditCard, Clock, Megaphone, ScrollText, Volume2, VolumeX } from 'lucide-react';
+import { ref, update } from 'firebase/database';
+import { db } from '../lib/firebase';
+import { soundAlerts } from '../lib/sound';
 
 export default function AdminLayout({ children, currentTab, setCurrentTab, onLogout, userEmail, data }: any) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -8,6 +11,25 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
   const pendingSubmissions = data.submissions?.filter((s: any) => s.status === 'pending').length || 0;
   const pendingWithdrawals = data.withdraws?.filter((w: any) => w.status === 'pending').length || 0;
   const totalAlerts = unreadChats + pendingSubmissions + pendingWithdrawals;
+
+  const audioEnabled = data.settings?.audio_alert_enabled !== undefined
+    ? data.settings.audio_alert_enabled
+    : (localStorage.getItem('audio_alert_enabled') !== 'false');
+
+  const toggleAudio = async () => {
+    const nextVal = !audioEnabled;
+    localStorage.setItem('audio_alert_enabled', String(nextVal));
+    if (nextVal) {
+      soundAlerts.playSubmissionAlert();
+    }
+    try {
+      await update(ref(db, "settings"), {
+        audio_alert_enabled: nextVal
+      });
+    } catch (e) {
+      console.warn('Failed to update audio setting:', e);
+    }
+  };
 
   const categories = [
     {
@@ -67,9 +89,27 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Quick Sound Alert Toggle */}
+          <button
+            onClick={toggleAudio}
+            title={audioEnabled ? "Audio Alerts Enabled (Click to Mute)" : "Audio Alerts Muted (Click to Enable)"}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
+              audioEnabled 
+                ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30' 
+                : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700/60'
+            }`}
+          >
+            {audioEnabled ? <Volume2 size={16} className="text-indigo-400 animate-pulse" /> : <VolumeX size={16} />}
+            <span className="hidden sm:inline text-[11px]">{audioEnabled ? 'Sound On' : 'Muted'}</span>
+          </button>
+
           {/* Real-time System Alerts Counter */}
-          <div className="relative flex items-center justify-center p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-750 transition-all cursor-pointer mr-1">
-            <BellRing size={18} className={totalAlerts > 0 ? "animate-bounce" : ""} />
+          <div 
+            onClick={() => setCurrentTab('submissions')}
+            className="relative flex items-center justify-center p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-750 transition-all cursor-pointer mr-1"
+            title={`${totalAlerts} Pending Alerts`}
+          >
+            <BellRing size={18} className={totalAlerts > 0 ? "animate-bounce text-amber-400" : ""} />
             {totalAlerts > 0 && (
               <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4.5 h-4.5 flex items-center justify-center rounded-full border-2 border-slate-900 shadow-md">
                 {totalAlerts > 99 ? '99+' : totalAlerts}
