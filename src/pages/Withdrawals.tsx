@@ -1,3 +1,4 @@
+import { copyToClipboardFallback } from "../lib/clipboard";
 import React, { useState, useMemo } from 'react';
 import { ref, update, get, push } from 'firebase/database';
 import { db } from '../lib/firebase';
@@ -91,7 +92,7 @@ export default function Withdrawals({ data }: any) {
   }, [enrichedWithdrawals, filterTab, search]);
 
   const copyText = (text: string, label = 'Copied') => {
-    navigator.clipboard.writeText(text);
+    copyToClipboardFallback(text);
     Swal.fire({
       toast: true,
       position: 'top-end',

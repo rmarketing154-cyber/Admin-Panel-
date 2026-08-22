@@ -1,3 +1,4 @@
+import { copyToClipboardFallback } from "../lib/clipboard";
 import React, { useState, useEffect, useMemo } from 'react';
 import { ref, update, push } from 'firebase/database';
 import { sendPasswordResetEmail } from 'firebase/auth';
@@ -54,7 +55,7 @@ export default function Users({ data, setCurrentTab }: any) {
   }, [data.users]);
 
   const copyToClipboard = (text: string, label = 'Copied') => {
-    navigator.clipboard.writeText(text);
+    copyToClipboardFallback(text);
     Swal.fire({
       toast: true,
       position: 'top-end',

@@ -1,17 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import { copyToClipboardFallback } from "../lib/clipboard";
+import React, { useState, useMemo, useEffect } from 'react';
 import { ref, update, get, push } from 'firebase/database';
 import { db } from '../lib/firebase';
 import Swal from 'sweetalert2';
 import { 
   ClipboardCopy, 
   ArrowRightCircle, 
-  CheckCircle, 
+  Check,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRightCircle, 
   XCircle, 
   Inbox, 
   Search, 
   Filter, 
   Copy, 
-  CheckCheck, 
+  Check,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRightCheck, 
   User, 
   Mail, 
   Calendar, 
@@ -21,12 +28,26 @@ import {
   History,
   Download,
   Eye,
-  Check
+  Check,
+  RefreshCw,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
 
 export default function Submissions({ data, type = 'pending' }: any) {
   const [selectedMails, setSelectedMails] = useState<Record<string, Record<number, boolean>>>({});
   const [subType, setSubType] = useState<string>(type);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (autoRefresh && data.forceRefresh) {
+      interval = setInterval(() => {
+        data.forceRefresh();
+      }, 30000);
+    }
+    return () => clearInterval(interval);
+  }, [autoRefresh, data]);
   const [search, setSearch] = useState('');
   const [userModal, setUserModal] = useState<any>(null);
 
@@ -114,7 +135,7 @@ export default function Submissions({ data, type = 'pending' }: any) {
   };
 
   const copyText = (text: string, label = 'Copied') => {
-    navigator.clipboard.writeText(text);
+    copyToClipboardFallback(text);
     Swal.fire({
       toast: true,
       position: 'top-end',
@@ -177,11 +198,17 @@ export default function Submissions({ data, type = 'pending' }: any) {
     });
 
     if (confirm.isConfirmed) {
+      const updatedGmails = (s.gmails || []).map((m: any, i: number) => ({
+        ...m,
+        status: checks[i] !== false ? 'approved' : 'rejected'
+      }));
+
       await update(ref(db, `submissions/${s.key}`), {
         status: 'approved',
         approvedCount: count,
         finalPayout: payout,
-        processedAt: Date.now()
+        processedAt: Date.now(),
+        gmails: updatedGmails
       });
 
       const userRef = ref(db, `users/${s.userId}`);
@@ -218,10 +245,16 @@ export default function Submissions({ data, type = 'pending' }: any) {
     });
 
     if (reason !== undefined) {
+      const updatedGmails = (s.gmails || []).map((m: any) => ({
+        ...m,
+        status: 'rejected'
+      }));
+
       await update(ref(db, `submissions/${s.key}`), {
         status: 'rejected',
         rejectReason: reason || 'Incorrect or non-functional credentials',
-        processedAt: Date.now()
+        processedAt: Date.now(),
+        gmails: updatedGmails
       });
 
       const userRef = ref(db, `users/${s.userId}`);
@@ -278,12 +311,22 @@ export default function Submissions({ data, type = 'pending' }: any) {
           </p>
         </div>
 
-        <button 
-          onClick={exportSubmissionsCSV}
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div 
+            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl cursor-pointer select-none"
+            onClick={() => setAutoRefresh(!autoRefresh)}
+          >
+            <RefreshCw size={14} className={autoRefresh ? "text-indigo-600 animate-spin" : "text-slate-400"} />
+            <span className="text-xs font-bold text-slate-700">Auto Refresh</span>
+            {autoRefresh ? <ToggleRight size={24} className="text-indigo-600" /> : <ToggleLeft size={24} className="text-slate-300" />}
+          </div>
+          <button 
+            onClick={exportSubmissionsCSV}
           className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm text-slate-700"
         >
           <Download size={14} /> Export CSV
         </button>
+        </div>
       </div>
 
       {/* Sub-Tab Navigation & Search */}
@@ -441,9 +484,9 @@ export default function Submissions({ data, type = 'pending' }: any) {
                     <div 
                       key={idx} 
                       className={`bg-white border rounded-2xl p-4 sm:p-5 transition-all space-y-3 relative ${
-                        isChecked 
-                          ? 'border-slate-200 shadow-2xs' 
-                          : 'border-red-200 bg-red-50/10 opacity-70'
+                        (subType === 'pending' || subType === 'checking') 
+                          ? (isChecked ? 'border-slate-200 shadow-2xs' : 'border-red-200 bg-red-50/10 opacity-70')
+                          : (m.status === 'rejected' ? 'border-red-200 bg-red-50/10 opacity-70' : 'border-slate-200 shadow-2xs')
                       }`}
                     >
                       {/* Box Sub-header: Checkbox & Status */}
@@ -470,8 +513,12 @@ export default function Submissions({ data, type = 'pending' }: any) {
                         )}
 
                         {/* Status pill exactly as shown */}
-                        <span className="bg-[#f8fafc] border border-slate-200 text-slate-500 px-3 py-0.5 rounded-full text-xs font-semibold select-none">
-                          {s.status}
+                        <span className={`px-3 py-0.5 rounded-full text-xs font-semibold select-none border ${
+                          m.status === 'approved' ? 'bg-emerald-50 border-emerald-200 text-emerald-600' :
+                          m.status === 'rejected' ? 'bg-red-50 border-red-200 text-red-600' :
+                          'bg-[#f8fafc] border-slate-200 text-slate-500'
+                        }`}>
+                          {m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1) : s.status}
                         </span>
                       </div>
 

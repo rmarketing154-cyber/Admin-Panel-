@@ -3,6 +3,8 @@ import { ref, onValue } from 'firebase/database';
 import { db } from '../lib/firebase';
 
 export function useAdminData(user: any) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const forceRefresh = () => setRefreshKey(k => k + 1);
   const [data, setData] = useState({
     users: [],
     submissions: [],
@@ -163,7 +165,7 @@ export function useAdminData(user: any) {
     ];
 
     return () => unsubs.forEach(u => u());
-  }, [user]);
+  }, [user, refreshKey]);
 
-  return { ...data, loading };
+  return { ...data, loading, forceRefresh };
 }

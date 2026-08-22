@@ -1,0 +1,3 @@
+#!/bin/bash
+SEARCH='<div className="flex items-center gap-3">\n          <div \n            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl cursor-pointer select-none"\n            onClick={() => setAutoRefresh(!autoRefresh)}\n          >\n            <RefreshCw size={14} className={autoRefresh ? "text-indigo-600 animate-spin" : "text-slate-400"} \/>\n            <span className="text-xs font-bold text-slate-700">Auto Refresh<\/span>\n            {autoRefresh ? <ToggleRight size={24} className="text-indigo-600" \/> : <ToggleLeft size={24} className="text-slate-300" \/>}\n          <\/div>\n          <button '
+perl -0777 -pi -e "s/$SEARCH/<button /g" src/pages/Submissions.tsx
