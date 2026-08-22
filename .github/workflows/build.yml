@@ -98,13 +98,22 @@ jobs:
         # Clean previous artifacts
         rm -rf build app/build .gradle
         
-        # Make Gradle wrapper executable
-        chmod +x gradlew
+        # Ensure Gradle Wrapper is valid and complete using system gradle
+        echo "Ensuring Gradle Wrapper is up to date..."
+        gradle wrapper --gradle-version 8.4 --distribution-type bin || true
+        chmod +x gradlew || true
         
-        # Run assembleRelease
-        ./gradlew :app:assembleRelease --no-daemon --stacktrace
+        # Execute AssembleRelease with gradlew, fallback to gradle if wrapper fails
+        echo "Starting assembleRelease..."
+        if [ -f "gradlew" ] && ./gradlew --version >/dev/null 2>&1; then
+          echo "Building with ./gradlew..."
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+        else
+          echo "Building with system gradle CLI..."
+          gradle :app:assembleRelease --no-daemon --stacktrace
+        fi
         
-        # Verify APK exists
+        # Verify and locate generated APK
         APK_PATH=$(find app/build/outputs/apk -type f -name "*.apk" | sort | head -n 1)
         if [ -n "$APK_PATH" ] && [ -f "$APK_PATH" ]; then
           echo "Found generated APK at: $APK_PATH"

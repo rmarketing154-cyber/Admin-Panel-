@@ -6,3 +6,5 @@ coverage/
 *.log
 .env*
 !.env.example
+!gradle-wrapper.jar
+!gradle-wrapper.properties
