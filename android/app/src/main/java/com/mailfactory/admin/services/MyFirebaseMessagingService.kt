@@ -57,7 +57,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 "gmail" -> "📧 নতুন Gmail এসেছে"
                 "withdrawal", "withdraw" -> "💰 নতুন উত্তোলন রিকোয়েস্ট"
                 "new_user", "user" -> "👤 নতুন সদস্য রেজিস্ট্রেশন"
-                "report", "support" -> "⚠️ নতুন রিপোর্ট"
+                "support", "chat", "message" -> "💬 সাপোর্টে নতুন মেসেজ"
+                "report" -> "⚠️ নতুন রিপোর্ট"
                 else -> "🔔 Mail factory admin Alert"
             }
         }
@@ -67,7 +68,8 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 "gmail" -> "নতুন Gmail এসেছে। Admin Panel থেকে ইনবক্স চেক করুন।"
                 "withdrawal", "withdraw" -> "একজন ইউজার নতুন উত্তোলন রিকোয়েস্ট করেছে। বিস্তারিত দেখতে Admin Panel খুলুন।"
                 "new_user", "user" -> "নতুন একজন সদস্য রেজিস্ট্রেশন করেছে।"
-                "report", "support" -> "একজন ইউজার নতুন রিপোর্ট জমা দিয়েছে।"
+                "support", "chat", "message" -> "সাপোর্টে একজন ইউজার নতুন মেসেজ পাঠিয়েছে। রিপ্লাই দিতে Admin Panel খুলুন।"
+                "report" -> "একজন ইউজার নতুন রিপোর্ট জমা দিয়েছে।"
                 else -> "নতুন একটি নোটিফিকেশন এসেছে।"
             }
         }

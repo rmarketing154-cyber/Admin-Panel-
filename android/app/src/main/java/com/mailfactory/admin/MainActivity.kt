@@ -51,10 +51,67 @@ class MainActivity : AppCompatActivity() {
 
         setSupportActionBar(binding.toolbar)
 
+        // Hide UI until authenticated
+        binding.root.visibility = View.INVISIBLE
+        showBiometricPrompt()
+    }
+
+    private fun showBiometricPrompt() {
+        val biometricManager = androidx.biometric.BiometricManager.from(this)
+        val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+
+        when (biometricManager.canAuthenticate(authenticators)) {
+            androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS -> {
+                Log.d(TAG, "App can authenticate using biometrics.")
+            }
+            androidx.biometric.BiometricManager.BIOMETRIC_ERROR_NO_HARDWARE,
+            androidx.biometric.BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE,
+            androidx.biometric.BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED -> {
+                // If biometric/PIN is not set up on device, proceed normally to not lock user out,
+                // or you could force them to set a PIN. We proceed for safety.
+                proceedAfterAuth()
+                return
+            }
+            else -> {
+                proceedAfterAuth()
+                return
+            }
+        }
+
+        val executor = ContextCompat.getMainExecutor(this)
+        val biometricPrompt = androidx.biometric.BiometricPrompt(this, executor,
+            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    Toast.makeText(applicationContext, "Authentication required: $errString", Toast.LENGTH_SHORT).show()
+                    finish() // Close app if user cancels or fails too many times
+                }
+
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    proceedAfterAuth()
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                    Toast.makeText(applicationContext, "Authentication failed", Toast.LENGTH_SHORT).show()
+                }
+            })
+
+        val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Admin Authentication")
+            .setSubtitle("Unlock MailFactory Admin Panel")
+            .setAllowedAuthenticators(authenticators)
+            .build()
+
+        biometricPrompt.authenticate(promptInfo)
+    }
+
+    private fun proceedAfterAuth() {
+        binding.root.visibility = View.VISIBLE
         checkNotificationPermission()
         setupWebView()
         setupSwipeRefresh()
-        initFcm()
         handleNotificationIntent(intent)
     }
 
@@ -72,6 +129,10 @@ class MainActivity : AppCompatActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) == PackageManager.PERMISSION_GRANTED -> {
                     initFcm()
+                }
+                shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                    Toast.makeText(this, "Please allow notifications to receive live admin alerts.", Toast.LENGTH_LONG).show()
+                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
                 else -> {
                     requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -106,6 +167,8 @@ class MainActivity : AppCompatActivity() {
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             settings.allowFileAccess = true
             settings.allowContentAccess = true
+            settings.allowFileAccessFromFileURLs = true
+            settings.allowUniversalAccessFromFileURLs = true
             settings.userAgentString = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
             addJavascriptInterface(AdminJsBridge(), "AndroidBridge")
@@ -151,7 +214,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadUrl(tokenManager.getAdminUrl())
+            loadUrl("file:///android_asset/index.html")
         }
 
         binding.btnRetry.setOnClickListener {

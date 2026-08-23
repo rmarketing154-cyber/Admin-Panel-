@@ -1,6 +1,1 @@
-{
-  "name": "Mail Factory Pro Admin",
-  "description": "Enterprise Administration Console and Mobile Push Notification Management for Mail Factory Pro",
-  "requestFramePermissions": ["notifications"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
+{  "name": "Mail Factory Admin",  "description": "Enterprise Administration Console and Mobile Push Notification Management for Mail Factory",  "requestFramePermissions": ["notifications"],  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}

@@ -85,7 +85,7 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
             <div className="p-1.5 bg-indigo-500/10 rounded-xl text-indigo-400">
               <Cpu className="text-indigo-400 w-5 h-5 animate-pulse" />
             </div>
-            <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">MAIL FACTORY PRO</span>
+            <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">MAIL FACTORY ADMIN</span>
           </div>
         </div>
         <div className="flex items-center gap-2">

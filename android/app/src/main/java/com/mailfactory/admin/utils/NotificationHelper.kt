@@ -87,7 +87,7 @@ object NotificationHelper {
             "gmail" -> CHANNEL_GMAIL
             "withdrawal", "withdraw" -> CHANNEL_WITHDRAWAL
             "new_user", "user", "registration" -> CHANNEL_USER
-            "report", "dispute", "support" -> CHANNEL_REPORT
+            "report", "dispute", "support", "chat", "message" -> CHANNEL_REPORT
             else -> CHANNEL_GENERAL
         }
     }
@@ -103,10 +103,11 @@ object NotificationHelper {
         val channelId = getChannelForType(type)
         val notificationId = (System.currentTimeMillis() % 100000).toInt()
 
-        // Construct Deep Link PendingIntent
-        val intent = Intent(context, MainActivity::class.java).apply {
+        val resolvedTarget = target ?: getTargetFromType(type)
+        val openTabIntent = Intent(context, MainActivity::class.java).apply {
+            action = "ACTION_OPEN_TAB"
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            putExtra("EXTRA_TARGET_PAGE", target ?: getTargetFromType(type))
+            putExtra("EXTRA_TARGET_PAGE", resolvedTarget)
             putExtra("EXTRA_ITEM_ID", id)
             putExtra("EXTRA_NOTIFICATION_TYPE", type)
         }
@@ -114,9 +115,11 @@ object NotificationHelper {
         val pendingIntent = PendingIntent.getActivity(
             context,
             notificationId,
-            intent,
+            openTabIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+
+        val actionTitle = "Open Tab"
 
         val defaultSoundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
@@ -131,6 +134,7 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setContentIntent(pendingIntent)
+            .addAction(0, actionTitle, pendingIntent)
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(notificationId, notificationBuilder.build())
@@ -141,7 +145,7 @@ object NotificationHelper {
             "gmail" -> "submissions"
             "withdrawal", "withdraw" -> "withdrawals"
             "new_user", "user" -> "users"
-            "report", "support" -> "chat"
+            "report", "support", "chat", "message" -> "chat"
             else -> "dashboard"
         }
     }

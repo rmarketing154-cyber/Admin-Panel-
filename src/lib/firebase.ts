@@ -1,5 +1,5 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, initializeAuth, browserLocalPersistence } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = { 
@@ -12,6 +12,17 @@ const firebaseConfig = {
   appId: "1:889959520630:web:f4cbf82f236b616e1f8257" 
 };
 
-export const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+let authInstance;
+try {
+  authInstance = initializeAuth(app, {
+    persistence: browserLocalPersistence
+  });
+} catch (error) {
+  // If already initialized (e.g., during Vite HMR), fall back to getAuth()
+  authInstance = getAuth(app);
+}
+
+export const auth = authInstance;
 export const db = getDatabase(app);

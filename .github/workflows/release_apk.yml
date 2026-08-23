@@ -1,4 +1,4 @@
-name: Build and Release APK
+name: Build and Release Secure Admin APK
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build & Release
+    name: Build Native APK
     runs-on: ubuntu-latest
 
     steps:
@@ -31,80 +31,59 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Auto Fix Layout Error & Build APK
+      - name: Bundle Local Assets & Build
         run: |
           if [ -d "android" ]; then
             cd android
           fi
-          
-          # XML এরর ফিক্স
+
+          # লেআউট ফিক্স (শুধুমাত্র ক্র্যাশ আটকানোর জন্য)
           find . -type f -name "*.xml" -exec sed -i 's/app:textColorHint/android:textColorHint/g' {} +
           find . -type f -name "*.xml" -exec sed -i 's/ textColorHint=/ android:textColorHint=/g' {} +
 
-          # google-services.json তৈরি
-          mkdir -p app
-          cat << 'EOF' > app/google-services.json
-          {
-            "project_info": {
-              "project_number": "100000000000",
-              "project_id": "mailfactory-admin",
-              "storage_bucket": "mailfactory-admin.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:100000000000:android:1234567890abcdef",
-                  "android_client_info": {
-                    "package_name": "com.mailfactory.admin"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDummyKeyForSuccessfulBuildOnly12345"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
+          # Build the Web App using Vite to get standard JS/CSS bundles.
+          cd ..
+          npm install
+          npm run build
+          cd android
+
+          # রুটের মূল কোডটিকে সরাসরি অ্যান্ড্রয়েডের লোকাল অ্যাসেটে ইন্টিগ্রেট করা
+          mkdir -p app/src/main/assets
+          
+          # Copy everything from the web build dist to Android assets
+          if [ -d "../dist" ]; then
+            cp -r ../dist/* app/src/main/assets/
+          elif [ -f "../index.html" ]; then
+            # Fallback if no dist
+            cp ../index.html app/src/main/assets/index.html
+          fi
 
           gradle wrapper
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
-      - name: Sign APK with v2/v3 Signing Scheme (apksigner)
+      - name: Sign APK (v2 & v3 Scheme)
         run: |
-          # Keystore তৈরি
-          keytool -genkeypair -v -keystore release.jks -alias mailKey -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=MailFactory,O=App,C=US"
-
-          # APK খুঁজে বের করা
-          RAW_APK=$(find . -name "*release*.apk" | head -n 1)
+          if [ -d "android" ]; then
+            cd android
+          fi
           
-          # Android Build Tools থেকে apksigner ও zipalign খুঁজে বের করা
+          keytool -genkeypair -v -keystore release.jks -alias adminKey -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=MailFactoryAdmin,O=App,C=US"
+          RAW_APK=$(find . -name "*release*.apk" | grep -v "unaligned" | head -n 1)
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          
-          # Zipalign করা
+
           $BUILD_TOOLS_DIR/zipalign -v -p 4 "$RAW_APK" aligned.apk
-          
-          # v2 & v3 স্কিমে Sign করা
-          $BUILD_TOOLS_DIR/apksigner sign --ks release.jks --ks-pass pass:123456 --key-pass pass:123456 --ks-key-alias mailKey --out MailFactory-Admin.apk aligned.apk
+          $BUILD_TOOLS_DIR/apksigner sign --ks release.jks --ks-pass pass:123456 --key-pass pass:123456 --ks-key-alias adminKey --out MailFactory-Admin.apk aligned.apk
 
           mkdir -p output
           cp MailFactory-Admin.apk output/
 
-      - name: Upload to GitHub Release
+      - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: MailFactory Admin v1.0.${{ github.run_number }}
-          files: output/MailFactory-Admin.apk
+          tag_name: v-admin-${{ github.run_number }}
+          name: MailFactory Admin v${{ github.run_number }}
+          files: android/output/MailFactory-Admin.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

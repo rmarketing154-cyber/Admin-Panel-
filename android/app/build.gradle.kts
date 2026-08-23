@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.androidx.coordinatorlayout)
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.biometric)
 
     // Firebase BoM & services
     implementation(platform(libs.firebase.bom))
