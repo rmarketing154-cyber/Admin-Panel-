@@ -37,6 +37,15 @@ export default function App() {
 
   // Listen for Deep Link navigation from Android FCM notification clicks
   useEffect(() => {
+    // Request Browser Notification permission if on Web
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then((permission) => {
+          console.log('Web Notification permission:', permission);
+        });
+      }
+    }
+
     (window as any).onNotificationDeepLink = (target: string, id?: string) => {
       console.log('FCM Deep Link received:', target, id);
       if (target) {

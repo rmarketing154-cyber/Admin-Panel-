@@ -24,17 +24,6 @@ import Swal from 'sweetalert2';
 
 export default function Dashboard({ data, setCurrentTab }: any) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (autoRefresh && data.forceRefresh) {
-      interval = setInterval(() => {
-        data.forceRefresh();
-      }, 30000);
-    }
-    return () => clearInterval(interval);
-  }, [autoRefresh, data]);
 
   const pendingSubmissions = useMemo(() => {
     return (data.submissions || [])
@@ -326,23 +315,6 @@ export default function Dashboard({ data, setCurrentTab }: any) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2 text-slate-800 font-bold">
-          <RefreshCw size={18} className={autoRefresh ? "text-indigo-600 animate-spin" : "text-slate-400"} />
-          Auto-Refresh Data
-        </div>
-        <div 
-          className="flex items-center gap-2 cursor-pointer select-none"
-          onClick={() => setAutoRefresh(!autoRefresh)}
-        >
-          <span className="text-xs font-semibold text-slate-500">Every 30s</span>
-          {autoRefresh ? (
-            <ToggleRight size={32} className="text-indigo-600" />
-          ) : (
-            <ToggleLeft size={32} className="text-slate-300" />
-          )}
-        </div>
-      </div>
       {/* Top Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((s, i) => (

@@ -51,6 +51,9 @@ class MainActivity : AppCompatActivity() {
 
         setSupportActionBar(binding.toolbar)
 
+        // Request Notification Permission immediately upon launch
+        checkNotificationPermission()
+
         // Hide UI until authenticated
         binding.root.visibility = View.INVISIBLE
         showBiometricPrompt()
@@ -110,6 +113,11 @@ class MainActivity : AppCompatActivity() {
     private fun proceedAfterAuth() {
         binding.root.visibility = View.VISIBLE
         checkNotificationPermission()
+        try {
+            com.mailfactory.admin.services.RealtimeAlertService.start(this)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start RealtimeAlertService: ${e.message}")
+        }
         setupWebView()
         setupSwipeRefresh()
         handleNotificationIntent(intent)
@@ -214,7 +222,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadUrl("file:///android_asset/index.html")
+            loadUrl(tokenManager.getAdminUrl())
         }
 
         binding.btnRetry.setOnClickListener {
@@ -224,13 +232,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setColorSchemeColors(
-            ContextCompat.getColor(this, R.color.primary),
-            ContextCompat.getColor(this, R.color.accent)
-        )
-        binding.swipeRefresh.setOnRefreshListener {
-            binding.webView.reload()
-        }
+        // Disable pull-to-refresh spinner since Firebase Realtime sync updates all data automatically
+        binding.swipeRefresh.isEnabled = false
     }
 
     private var pendingTargetPage: String? = null

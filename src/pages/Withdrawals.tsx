@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { ref, update, get, push } from 'firebase/database';
 import { db } from '../lib/firebase';
 import Swal from 'sweetalert2';
+import { exportToPDF } from '../utils/pdfExport';
 import { 
   Wallet, 
   ClipboardCopy, 
@@ -10,6 +11,7 @@ import {
   XCircle, 
   Search, 
   Download, 
+  FileText,
   Copy, 
   Calendar, 
   Coins, 
@@ -179,16 +181,45 @@ export default function Withdrawals({ data }: any) {
     }
   };
 
-  const exportCSV = () => {
-    let csv = 'Key,User,User UID,Amount,Method,Account Number,Status,TrxID,Requested At,Processed At\n';
-    list.forEach((w: any) => {
-      csv += `"${w.key}","${w.userInfo?.username || w.username || ''}","${w.userId || ''}",${w.amount || 0},"${w.paymentMethod || w.method || ''}","${w.paymentNumber || w.accountNumber || ''}","${w.status}","${w.trxId || ''}","${w.requestedAt ? new Date(w.requestedAt).toISOString() : ''}","${w.approvedAt || w.rejectedAt ? new Date(w.approvedAt || w.rejectedAt).toISOString() : ''}"\n`;
+  const exportPDF = () => {
+    const headers = [
+      'Key',
+      'User Name',
+      'User UID',
+      'Amount',
+      'Method',
+      'Account / Phone Number',
+      'Status',
+      'TrxID',
+      'Requested At'
+    ];
+
+    const data = list.map((w: any) => [
+      w.key ? w.key.substring(0, 10) + '...' : '',
+      w.userInfo?.username || w.username || 'N/A',
+      w.userId ? w.userId.substring(0, 8) + '...' : '',
+      `Tk ${Number(w.amount || 0).toFixed(2)}`,
+      w.paymentMethod || w.method || 'bKash',
+      w.paymentNumber || w.accountNumber || 'N/A',
+      String(w.status || 'pending').toUpperCase(),
+      w.trxId || '-',
+      w.requestedAt ? new Date(w.requestedAt).toLocaleDateString('en-GB') : 'N/A'
+    ]);
+
+    const totalFilteredAmount = list.reduce((sum: number, w: any) => sum + Number(w.amount || 0), 0);
+
+    exportToPDF({
+      title: `Withdrawals & Payouts Report (${filterTab.toUpperCase()})`,
+      subtitle: `Total Records: ${list.length}`,
+      filename: `withdrawals_${filterTab}_${Date.now()}`,
+      headers,
+      data,
+      summaryStats: [
+        { label: 'Total Requests', value: list.length },
+        { label: 'Total Volume', value: `Tk ${totalFilteredAmount.toFixed(2)}` },
+        { label: 'Status Filter', value: filterTab.toUpperCase() }
+      ]
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `withdrawals_${filterTab}_${Date.now()}.csv`;
-    a.click();
   };
 
   const formatTime = (ts: any) => {
@@ -225,10 +256,10 @@ export default function Withdrawals({ data }: any) {
         </div>
 
         <button 
-          onClick={exportCSV} 
-          className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm text-slate-700"
+          onClick={exportPDF} 
+          className="flex items-center gap-2 px-3.5 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs text-indigo-700 cursor-pointer"
         >
-          <Download size={14} /> Export CSV
+          <FileText size={14} /> Export PDF Report
         </button>
       </div>
 

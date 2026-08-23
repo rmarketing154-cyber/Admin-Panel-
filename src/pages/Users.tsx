@@ -4,11 +4,13 @@ import { ref, update, push } from 'firebase/database';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { db, auth } from '../lib/firebase';
 import Swal from 'sweetalert2';
+import { exportToPDF } from '../utils/pdfExport';
 import { 
   Users as UsersIcon, 
   ChevronLeft, 
   Search, 
   Download, 
+  FileText,
   ChevronRight, 
   ShieldBan, 
   Trophy, 
@@ -71,6 +73,17 @@ export default function Users({ data, setCurrentTab }: any) {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return String(ts);
     return d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getReferrerUser = (referredBy: any) => {
+    if (!referredBy) return null;
+    const allUsers = data.users || [];
+    const cleanKey = String(referredBy).trim().toLowerCase();
+    return allUsers.find((u: any) => 
+      (u.uid && u.uid.toLowerCase() === cleanKey) ||
+      (u.id && String(u.id).toLowerCase() === cleanKey) ||
+      (u.referralCode && String(u.referralCode).toLowerCase() === cleanKey)
+    );
   };
 
   // User Stats & Calculations for Filter/Sort
@@ -204,16 +217,50 @@ export default function Users({ data, setCurrentTab }: any) {
     return list;
   }, [usersWithStats, filter, search, sortBy]);
 
-  const exportCSV = () => {
-    let csv = 'UID,Username,Email,Phone,Level,Main Balance,Hold Balance,Total Withdrawn,Approved Emails,Submissions,Referrals,Status,Created At,Last Login\n';
-    usersWithStats.forEach((u: any) => {
-      csv += `"${u.uid}","${u.username || ''}","${u.email || ''}","${u.phone || ''}",${u.level || 1},${u.balance || 0},${u.hold || 0},${u.totalWithdrawn},${u.approvedEmails},${u.totalSubsCount},${u.referralsCount},"${u.is_blocked ? 'Blocked' : 'Active'}","${u.createdAt || ''}","${u.last_login || ''}"\n`;
+  const exportPDF = () => {
+    const headers = [
+      'UID',
+      'Name / Username',
+      'Email',
+      'Phone',
+      'Lv',
+      'Balance',
+      'Hold',
+      'Paid Out',
+      'Approved Mails',
+      'Status',
+      'Joined Date'
+    ];
+
+    const data = usersWithStats.map((u: any) => [
+      u.uid ? u.uid.substring(0, 10) + '...' : '',
+      u.username || u.name || 'N/A',
+      u.email || 'N/A',
+      u.phone || 'N/A',
+      `Lv.${u.level || 1}`,
+      `Tk ${Number(u.balance || 0).toFixed(2)}`,
+      `Tk ${Number(u.hold || 0).toFixed(2)}`,
+      `Tk ${Number(u.totalWithdrawn || 0).toFixed(2)}`,
+      String(u.approvedEmails || 0),
+      u.is_blocked ? 'Blocked' : 'Active',
+      u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-GB') : 'N/A'
+    ]);
+
+    const totalBalance = usersWithStats.reduce((sum: number, u: any) => sum + Number(u.balance || 0), 0);
+    const totalWithdrawn = usersWithStats.reduce((sum: number, u: any) => sum + Number(u.totalWithdrawn || 0), 0);
+
+    exportToPDF({
+      title: 'Users Dossier & Financial Summary Report',
+      subtitle: `Total Users: ${usersWithStats.length}`,
+      filename: `users_report_${Date.now()}`,
+      headers,
+      data,
+      summaryStats: [
+        { label: 'Total Registered', value: usersWithStats.length },
+        { label: 'Total Active Balances', value: `Tk ${totalBalance.toFixed(2)}` },
+        { label: 'Total Disbursed', value: `Tk ${totalWithdrawn.toFixed(2)}` }
+      ]
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `users_full_dossier_${Date.now()}.csv`;
-    a.click();
   };
 
   // Administrative Actions
@@ -631,9 +678,36 @@ export default function Users({ data, setCurrentTab }: any) {
 
                     <div>
                       <span className="text-slate-400 font-semibold block">Referred By</span>
-                      <span className="font-bold text-slate-700 truncate block">
-                        {selectedUser.referredBy ? `UID: ${selectedUser.referredBy}` : 'Organic (Direct)'}
-                      </span>
+                      {(() => {
+                        if (!selectedUser.referredBy) {
+                          return <span className="font-bold text-slate-500 block mt-0.5">Organic (Direct)</span>;
+                        }
+                        const referrer = getReferrerUser(selectedUser.referredBy);
+                        if (referrer) {
+                          const displayName = referrer.username || referrer.name || referrer.displayName || referrer.email?.split('@')[0] || 'User';
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUser(referrer)}
+                              className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold transition-all text-xs group cursor-pointer text-left shadow-2xs max-w-full"
+                              title={`Click to open ${displayName}'s profile`}
+                            >
+                              <div className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-black shrink-0">
+                                {displayName.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="font-black text-slate-800 group-hover:text-indigo-700 truncate max-w-[120px]">
+                                {displayName}
+                              </span>
+                              <span className="text-[10px] text-indigo-600 font-medium shrink-0">↗</span>
+                            </button>
+                          );
+                        }
+                        return (
+                          <span className="font-bold text-slate-700 truncate block mt-0.5">
+                            {selectedUser.referredBy.length > 14 ? `ID: ${selectedUser.referredBy.substring(0, 10)}...` : selectedUser.referredBy}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     <div>
@@ -962,10 +1036,10 @@ export default function Users({ data, setCurrentTab }: any) {
         </div>
 
         <button 
-          onClick={exportCSV} 
-          className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm text-slate-700"
+          onClick={exportPDF} 
+          className="flex items-center gap-2 px-3.5 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs text-indigo-700 cursor-pointer"
         >
-          <Download size={15} /> Export Detailed CSV
+          <FileText size={15} /> Export PDF Report
         </button>
       </div>
 

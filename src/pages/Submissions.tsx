@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ref, update, get, push } from 'firebase/database';
 import { db } from '../lib/firebase';
 import Swal from 'sweetalert2';
+import { exportToPDF } from '../utils/pdfExport';
 import { 
   ClipboardCopy, 
   ArrowRightCircle, 
@@ -24,23 +25,13 @@ import {
   AlertTriangle,
   History,
   Download,
+  FileText,
   Eye
 } from 'lucide-react';
 
 export default function Submissions({ data, type = 'pending' }: any) {
   const [selectedMails, setSelectedMails] = useState<Record<string, Record<number, boolean>>>({});
   const [subType, setSubType] = useState<string>(type);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (autoRefresh && data.forceRefresh) {
-      interval = setInterval(() => {
-        data.forceRefresh();
-      }, 30000);
-    }
-    return () => clearInterval(interval);
-  }, [autoRefresh, data]);
   const [search, setSearch] = useState('');
   const [userModal, setUserModal] = useState<any>(null);
 
@@ -270,17 +261,48 @@ export default function Submissions({ data, type = 'pending' }: any) {
     }
   };
 
-  const exportSubmissionsCSV = () => {
-    let csv = 'Key,User,User UID,Status,Submitted At,Total Amount,Total Mails,Mails Data\n';
-    list.forEach((s: any) => {
-      const mailsStr = (s.gmails || []).map((m: any) => `${m.email}:${m.password}`).join(' | ');
-      csv += `"${s.key}","${s.userInfo?.username || s.username || ''}","${s.userId || ''}","${s.status}","${s.submittedAt ? new Date(s.submittedAt).toISOString() : ''}",${s.totalAmount || 0},${s.gmails?.length || 0},"${mailsStr}"\n`;
+  const exportSubmissionsPDF = () => {
+    const headers = [
+      'Sub ID',
+      'User / Name',
+      'User UID',
+      'Status',
+      'Submitted At',
+      'Amount',
+      'Mails Count',
+      'Sample Emails'
+    ];
+
+    const data = list.map((s: any) => {
+      const sampleEmails = (s.gmails || []).slice(0, 3).map((m: any) => m.email).join(', ');
+      const extraCount = (s.gmails?.length || 0) > 3 ? ` (+${(s.gmails?.length || 0) - 3} more)` : '';
+      return [
+        s.key ? s.key.substring(0, 10) + '...' : '',
+        s.userInfo?.username || s.username || 'N/A',
+        s.userId ? s.userId.substring(0, 8) + '...' : '',
+        String(s.status || 'pending').toUpperCase(),
+        s.submittedAt ? new Date(s.submittedAt).toLocaleDateString('en-GB') : 'N/A',
+        `Tk ${Number(s.totalAmount || 0).toFixed(2)}`,
+        String(s.gmails?.length || 0),
+        sampleEmails + extraCount
+      ];
     });
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `submissions_${subType}_${Date.now()}.csv`;
-    a.click();
+
+    const totalSubAmount = list.reduce((sum: number, s: any) => sum + Number(s.totalAmount || 0), 0);
+    const totalMails = list.reduce((sum: number, s: any) => sum + (s.gmails?.length || 0), 0);
+
+    exportToPDF({
+      title: `Submissions Report (${subType.toUpperCase()})`,
+      subtitle: `Total Batches: ${list.length} | Total Mails: ${totalMails}`,
+      filename: `submissions_${subType}_${Date.now()}`,
+      headers,
+      data,
+      summaryStats: [
+        { label: 'Total Batches', value: list.length },
+        { label: 'Total Gmail Accounts', value: totalMails },
+        { label: 'Cumulative Value', value: `Tk ${totalSubAmount.toFixed(2)}` }
+      ]
+    });
   };
 
   const formatTime = (ts: any) => {
@@ -305,20 +327,12 @@ export default function Submissions({ data, type = 'pending' }: any) {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <div 
-            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-xl cursor-pointer select-none"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-          >
-            <RefreshCw size={14} className={autoRefresh ? "text-indigo-600 animate-spin" : "text-slate-400"} />
-            <span className="text-xs font-bold text-slate-700">Auto Refresh</span>
-            {autoRefresh ? <ToggleRight size={24} className="text-indigo-600" /> : <ToggleLeft size={24} className="text-slate-300" />}
-          </div>
           <button 
-            onClick={exportSubmissionsCSV}
-          className="flex items-center gap-2 px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold hover:bg-slate-50 transition-colors shadow-sm text-slate-700"
-        >
-          <Download size={14} /> Export CSV
-        </button>
+            onClick={exportSubmissionsPDF}
+            className="flex items-center gap-2 px-3.5 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shadow-2xs text-indigo-700 cursor-pointer"
+          >
+            <FileText size={14} /> Export PDF Report
+          </button>
         </div>
       </div>
 
