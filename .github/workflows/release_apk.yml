@@ -30,34 +30,38 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      # wrapper ফাইল না থাকলে এটি স্বয়ংক্রিয়ভাবে জেনারেট করবে
-      - name: Ensure Gradle Wrapper
+      - name: Locate Project & Build Release APK
         run: |
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "Gradle wrapper missing. Regenerating..."
-            gradle wrapper
+          # build.gradle বা settings.gradle ফাইলটি কোন ডিরেক্টরিতে আছে তা খুঁজে বের করা
+          BUILD_DIR=$(find . -name "settings.gradle*" -o -name "build.gradle*" | head -n 1 | xargs dirname)
+          echo "Building in directory: $BUILD_DIR"
+          cd "$BUILD_DIR"
+          
+          # gradlew না থাকলে বা পারমিশন না থাকলে সেটআপ করা
+          if [ -f "gradlew" ]; then
+            chmod +x gradlew
+            ./gradlew assembleRelease --no-daemon
+          else
+            gradle assembleRelease --no-daemon
           fi
-          chmod +x gradlew
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease --no-daemon
-
-      - name: Create Self-Signed Keystore & Sign APK
+      - name: Sign APK & Prepare Artifact
         run: |
           KEYSTORE_PATH="temp-release-key.jks"
           keytool -genkeypair -v -keystore $KEYSTORE_PATH -alias releaseKey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android,O=Android,C=US"
           
-          # Find APK and Sign
-          APK_PATH=$(find app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
+          # জেনারেট হওয়া APK খুঁজে বের করা
+          APK_PATH=$(find . -type f -name "*.apk" | grep -E "release|unsigned" | head -n 1)
+          
           if [ -z "$APK_PATH" ]; then
-            APK_PATH=$(find build/app/outputs/flutter-apk/ -name "*.apk" | head -n 1)
+            echo "No APK found after build!"
+            exit 1
           fi
           
-          # Sign using jarsigner
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore $KEYSTORE_PATH -storepass android -keypass android $APK_PATH releaseKey
+          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore $KEYSTORE_PATH -storepass android -keypass android "$APK_PATH" releaseKey
           
           mkdir -p release_output
-          cp $APK_PATH release_output/app-release.apk
+          cp "$APK_PATH" release_output/app-release.apk
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
