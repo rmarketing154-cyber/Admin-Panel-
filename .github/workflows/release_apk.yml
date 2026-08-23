@@ -28,12 +28,18 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Fix Wrapper and Build APK
+      - name: Fix Dependencies, Wrapper and Build APK
         run: |
           if [ -d "android" ]; then
             cd android
           fi
           
+          # google-services.json মিসিং থাকলে ডামি ফাইল অটো তৈরি করা (বিল্ড ফেইল হওয়া আটকাতে)
+          mkdir -p app
+          if [ ! -f "app/google-services.json" ]; then
+            echo '{"project_info":{"project_number":"123456789","project_id":"dummy-app"},"client":[{"client_info":{"mobilesdk_app_id":"1:123456789:android:dummy","android_client_info":{"package_name":"com.example.app"}},"api_key":[{"current_key":"dummy_key"}]}]}' > app/google-services.json
+          fi
+
           # মিসিং র‍্যাপার তৈরি করা
           gradle wrapper
           chmod +x gradlew
