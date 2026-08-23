@@ -30,45 +30,62 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Locate Project & Build Release APK
+      - name: Locate Android Project & Fix Gradle Wrapper
         run: |
-          # build.gradle বা settings.gradle ফাইলটি কোন ডিরেক্টরিতে আছে তা খুঁজে বের করা
-          BUILD_DIR=$(find . -name "settings.gradle*" -o -name "build.gradle*" | head -n 1 | xargs dirname)
-          echo "Building in directory: $BUILD_DIR"
-          cd "$BUILD_DIR"
-          
-          # gradlew না থাকলে বা পারমিশন না থাকলে সেটআপ করা
-          if [ -f "gradlew" ]; then
-            chmod +x gradlew
-            ./gradlew assembleRelease --no-daemon
+          # Android ফোল্ডার অথবা রুট ডিরেক্টরি ডিটেক্ট করা
+          if [ -d "android" ]; then
+            TARGET_DIR="android"
           else
-            gradle assembleRelease --no-daemon
+            TARGET_DIR="."
           fi
+          echo "Target Directory is: $TARGET_DIR"
+          cd "$TARGET_DIR"
 
-      - name: Sign APK & Prepare Artifact
+          # Wrapper জার মিসিং থাকলে স্বয়ংক্রিয়ভাবে ডাউনলোড/তৈরি করা
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Gradle wrapper jar missing. Generating now..."
+            gradle wrapper
+          fi
+          chmod +x gradlew
+
+          # APK বিল্ড কমান্ড
+          ./gradlew assembleRelease --no-daemon || gradle assembleRelease --no-daemon
+
+      - name: Sign APK & Prepare Output
         run: |
           KEYSTORE_PATH="temp-release-key.jks"
           keytool -genkeypair -v -keystore $KEYSTORE_PATH -alias releaseKey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android,O=Android,C=US"
           
-          # জেনারেট হওয়া APK খুঁজে বের করা
-          APK_PATH=$(find . -type f -name "*.apk" | grep -E "release|unsigned" | head -n 1)
+          # তৈরি হওয়া APK ফাইল খুঁজে বের করা
+          APK_FILE=$(find . -type f -name "*.apk" | grep -i "release" | grep -v "unaligned" | head -n 1)
           
-          if [ -z "$APK_PATH" ]; then
-            echo "No APK found after build!"
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: No APK file generated!"
             exit 1
           fi
           
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore $KEYSTORE_PATH -storepass android -keypass android "$APK_PATH" releaseKey
+          echo "Processing APK: $APK_FILE"
           
-          mkdir -p release_output
-          cp "$APK_PATH" release_output/app-release.apk
+          # Android 11+ সাপোর্টের জন্য jarsigner-এর পরিবর্তে zipalign এবং apksigner ব্যবহার করা হলো
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_SDK_ROOT/build-tools/* | sort -V | tail -n 1)
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+          
+          ALIGNED_APK="aligned-release.apk"
+          "$ZIPALIGN" -v -f -p 4 "$APK_FILE" "$ALIGNED_APK"
+          
+          echo "Signing APK..."
+          "$APKSIGNER" sign --ks $KEYSTORE_PATH --ks-pass pass:android --ks-key-alias releaseKey --key-pass pass:android --out final-app-release.apk "$ALIGNED_APK"
+          
+          mkdir -p release_assets
+          cp final-app-release.apk release_assets/app-release.apk
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: release-${{ github.run_number }}
-          name: Release v${{ github.run_number }}
-          files: release_output/app-release.apk
+          tag_name: v1.0.${{ github.run_number }}
+          name: App Release v1.0.${{ github.run_number }}
+          files: release_assets/app-release.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
