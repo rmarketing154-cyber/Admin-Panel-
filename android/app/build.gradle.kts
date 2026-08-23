@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.androidx.swiperefreshlayout)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.biometric)
+    implementation("androidx.webkit:webkit:1.11.0")
 
     // Firebase BoM & services
     implementation(platform(libs.firebase.bom))

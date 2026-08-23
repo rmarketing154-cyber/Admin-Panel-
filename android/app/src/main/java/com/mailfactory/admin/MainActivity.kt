@@ -17,6 +17,8 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewAssetLoader
+import androidx.webkit.WebViewAssetLoader.AssetsPathHandler
 import com.google.firebase.messaging.FirebaseMessaging
 import com.mailfactory.admin.data.AdminTokenManager
 import com.mailfactory.admin.databinding.ActivityMainBinding
