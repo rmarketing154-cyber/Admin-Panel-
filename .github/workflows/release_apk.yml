@@ -31,6 +31,52 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Create google-services.json
+        run: |
+          mkdir -p android/app
+          cat << 'EOF' > android/app/google-services.json
+          {
+            "project_info": {
+              "project_number": "889959520630",
+              "firebase_url": "https://exchanger-pro-default-rtdb.firebaseio.com",
+              "project_id": "exchanger-pro",
+              "storage_bucket": "exchanger-pro.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:889959520630:android:f91b1e65865bc68c1f8257",
+                  "android_client_info": {
+                    "package_name": "com.mailfactory.admin"
+                  }
+                },
+                "oauth_client": [
+                  {
+                    "client_id": "889959520630-c34sg26q9qnb7umdkeedv6ii6rak7fn8.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
+                "api_key": [
+                  {
+                    "current_key": "AIzaSyCz4g0_N7If9lSs-f1oo-k9Yj-8EvKKu2M"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": [
+                      {
+                        "client_id": "889959520630-c34sg26q9qnb7umdkeedv6ii6rak7fn8.apps.googleusercontent.com",
+                        "client_type": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }
+          EOF
+
       - name: Bundle Local Assets & Build
         run: |
           if [ -d "android" ]; then
