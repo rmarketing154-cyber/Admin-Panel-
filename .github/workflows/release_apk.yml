@@ -25,6 +25,9 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
@@ -34,7 +37,7 @@ jobs:
             cd android
           fi
           
-          # XML ফাইলের textColorHint নেমস্পেস এরর অটো-ফিক্স
+          # XML এরর ফিক্স
           find . -type f -name "*.xml" -exec sed -i 's/app:textColorHint/android:textColorHint/g' {} +
           find . -type f -name "*.xml" -exec sed -i 's/ textColorHint=/ android:textColorHint=/g' {} +
 
@@ -72,28 +75,36 @@ jobs:
           }
           EOF
 
-          # মিসিং র‍্যাপার তৈরি ও বিল্ড
           gradle wrapper
           chmod +x gradlew
           ./gradlew assembleRelease --no-daemon
 
-      - name: Sign APK
+      - name: Sign APK with v2/v3 Signing Scheme (apksigner)
         run: |
-          KEYSTORE_PATH="temp.jks"
-          keytool -genkeypair -v -keystore $KEYSTORE_PATH -alias releaseKey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android,O=Android,C=US"
+          # Keystore তৈরি
+          keytool -genkeypair -v -keystore release.jks -alias mailKey -keyalg RSA -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 -dname "CN=MailFactory,O=App,C=US"
+
+          # APK খুঁজে বের করা
+          RAW_APK=$(find . -name "*release*.apk" | head -n 1)
           
-          APK=$(find . -name "*release*.apk" | head -n 1)
-          jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore $KEYSTORE_PATH -storepass android -keypass android "$APK" releaseKey
+          # Android Build Tools থেকে apksigner ও zipalign খুঁজে বের করা
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
           
+          # Zipalign করা
+          $BUILD_TOOLS_DIR/zipalign -v -p 4 "$RAW_APK" aligned.apk
+          
+          # v2 & v3 স্কিমে Sign করা
+          $BUILD_TOOLS_DIR/apksigner sign --ks release.jks --ks-pass pass:123456 --key-pass pass:123456 --ks-key-alias mailKey --out MailFactory-Admin.apk aligned.apk
+
           mkdir -p output
-          cp "$APK" output/MailFactory-Admin-release.apk
+          cp MailFactory-Admin.apk output/
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: MailFactory Admin v1.0.${{ github.run_number }}
-          files: output/MailFactory-Admin-release.apk
+          files: output/MailFactory-Admin.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
