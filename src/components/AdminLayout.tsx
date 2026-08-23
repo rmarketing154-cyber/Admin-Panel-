@@ -35,38 +35,37 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
     {
       title: 'Work & Operations',
       items: [
-        { id: 'dashboard', label: 'Dashboard Overview', icon: LayoutDashboard },
-        { id: 'submissions', label: 'New Submissions', icon: Inbox, badge: data.submissions?.filter((s: any) => s.status === 'pending').length },
-        { id: 'checking', label: 'Checking Queue', icon: CheckCircle2, badge: data.submissions?.filter((s: any) => s.status === 'checking').length },
-        { id: 'withdrawals', label: 'Withdrawals (Pay)', icon: Wallet, badge: data.withdraws?.filter((w: any) => w.status === 'pending').length },
+        { id: 'dashboard', label: 'Dashboard Overview', icon: LayoutDashboard, icon3d: 'icon-3d-indigo' },
+        { id: 'submissions', label: 'New Submissions', icon: Inbox, badge: data.submissions?.filter((s: any) => s.status === 'pending').length, icon3d: 'icon-3d-amber' },
+        { id: 'checking', label: 'Checking Queue', icon: CheckCircle2, badge: data.submissions?.filter((s: any) => s.status === 'checking').length, icon3d: 'icon-3d-cyan' },
+        { id: 'withdrawals', label: 'Withdrawals (Pay)', icon: Wallet, badge: data.withdraws?.filter((w: any) => w.status === 'pending').length, icon3d: 'icon-3d-rose' },
       ]
     },
     {
       title: 'Users & Growth',
       items: [
-        { id: 'users', label: 'User Management', icon: Users, badge: data.users?.length },
-        { id: 'today_activity', label: 'Today Visits & Earnings', icon: Activity },
-        { id: 'topsellers', label: 'Top 10 Sellers', icon: Trophy },
-        { id: 'reviews', label: 'Review Moderation', icon: Star },
-        { id: 'referrals', label: 'Referral Analytics', icon: Network },
+        { id: 'users', label: 'User Management', icon: Users, badge: data.users?.length, icon3d: 'icon-3d-emerald' },
+        { id: 'today_activity', label: 'Today Visits & Earnings', icon: Activity, icon3d: 'icon-3d-purple' },
+        { id: 'topsellers', label: 'Top 10 Sellers', icon: Trophy, icon3d: 'icon-3d-amber' },
+        { id: 'reviews', label: 'Review Moderation', icon: Star, icon3d: 'icon-3d-rose' },
+        { id: 'referrals', label: 'Referral Analytics', icon: Network, icon3d: 'icon-3d-cyan' },
       ]
     },
     {
       title: 'App Rates & Settings',
       items: [
-        { id: 'settings', label: 'Financial & Rates', icon: Coins },
-        { id: 'maintenance', label: 'Maintenance & Controls', icon: Wrench },
-        { id: 'gateways', label: 'Payment Gateways', icon: CreditCard },
-        { id: 'shifts', label: 'Review Shifts', icon: Clock },
-        { id: 'notices', label: 'Notice Board', icon: Megaphone },
+        { id: 'settings', label: 'Financial & Rates', icon: Coins, icon3d: 'icon-3d-emerald' },
+        { id: 'maintenance', label: 'Maintenance & Controls', icon: Wrench, icon3d: 'icon-3d-slate' },
+        { id: 'gateways', label: 'Payment Gateways', icon: CreditCard, icon3d: 'icon-3d-indigo' },
+        { id: 'shifts', label: 'Review Shifts', icon: Clock, icon3d: 'icon-3d-purple' },
       ]
     },
     {
       title: 'Support & Audit',
       items: [
-        { id: 'chat', label: 'Live Support Chat', icon: MessageSquare, badge: data.chats?.filter((c: any) => c.unread).length },
-        { id: 'notif', label: 'Push Notification', icon: BellRing },
-        { id: 'log', label: 'Activity Logs', icon: ScrollText },
+        { id: 'chat', label: 'Live Support Chat', icon: MessageSquare, badge: data.chats?.filter((c: any) => c.unread).length, icon3d: 'icon-3d-indigo' },
+        { id: 'notif', label: 'Push & Popup Notice', icon: BellRing, icon3d: 'icon-3d-rose' },
+        { id: 'log', label: 'Activity Logs', icon: ScrollText, icon3d: 'icon-3d-slate' },
       ]
     }
   ];
@@ -84,9 +83,12 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
             <Menu size={18} className="stroke-[2.5]" />
           </button>
           <div className="flex items-center gap-2.5 font-black text-sm sm:text-base tracking-wider text-white">
-            <div className="p-1.5 bg-indigo-500/10 rounded-xl text-indigo-400">
-              <Cpu className="text-indigo-400 w-5 h-5 animate-pulse" />
-            </div>
+            <img 
+              src="https://files.catbox.moe/cqiv5k.png" 
+              alt="Logo" 
+              className="w-8 h-8 rounded-xl object-cover shadow-lg shadow-indigo-500/30 border border-white/20 icon-3d transition-transform hover:scale-105 shrink-0" 
+              referrerPolicy="no-referrer" 
+            />
             <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">MAIL FACTORY ADMIN</span>
           </div>
         </div>
@@ -145,8 +147,13 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
           flex flex-col shadow-xl lg:shadow-none
         `}>
           <div className="p-4 border-b border-slate-100 flex items-center justify-between lg:hidden bg-slate-50/50">
-            <div className="flex items-center gap-2 font-bold text-slate-800">
-              <Cpu className="text-[#4f46e5] w-5 h-5" />
+            <div className="flex items-center gap-2.5 font-bold text-slate-800">
+              <img 
+                src="https://files.catbox.moe/cqiv5k.png" 
+                alt="Logo" 
+                className="w-7 h-7 rounded-lg object-cover shadow-md shadow-indigo-500/20 border border-slate-200 icon-3d shrink-0" 
+                referrerPolicy="no-referrer" 
+              />
               <span className="text-xs tracking-wider font-black uppercase text-slate-500">Master Menu</span>
             </div>
             <button 
@@ -183,7 +190,9 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
                       }`}
                   >
                     <div className="flex items-center gap-3">
-                      <item.icon size={16} className={`stroke-[2.5] ${currentTab === item.id ? 'text-white' : 'text-slate-400'}`} />
+                      <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${item.icon3d || 'icon-3d-indigo'} ${currentTab === item.id ? 'ring-2 ring-white/40 shadow-lg' : 'opacity-90'}`}>
+                        <item.icon size={15} className="stroke-[2.5] drop-shadow-sm text-white" />
+                      </div>
                       <span>{item.label}</span>
                     </div>
                     {(item.badge && item.badge > 0) ? (

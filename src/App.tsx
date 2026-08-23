@@ -15,7 +15,6 @@ import Reviews from './pages/Reviews';
 import Referrals from './pages/Referrals';
 import Gateways from './pages/Gateways';
 import Shifts from './pages/Shifts';
-import Notices from './pages/Notices';
 import PushNotification from './pages/PushNotification';
 import AuditLogs from './pages/AuditLogs';
 import TodayActivity from './pages/TodayActivity';
@@ -124,7 +123,6 @@ export default function App() {
       {currentTab === 'maintenance' && <Maintenance data={data} />}
       {currentTab === 'gateways' && <Gateways data={data} />}
       {currentTab === 'shifts' && <Shifts data={data} />}
-      {currentTab === 'notices' && <Notices data={data} />}
       {currentTab === 'chat' && <SupportChat data={data} />}
       {currentTab === 'notif' && <PushNotification data={data} />}
       {currentTab === 'log' && <AuditLogs data={data} />}

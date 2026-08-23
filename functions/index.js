@@ -257,3 +257,114 @@ exports.sendManualAdminPush = functions.https.onCall(async (data, context) => {
 
   return { success: true, message: "Push notification dispatched successfully." };
 });
+
+/**
+ * 6. Trigger on New Global Notification (All Users)
+ */
+exports.onGlobalNotification = functions.database
+  .ref("/admin_notifications/{notifId}")
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.val() || {};
+    if (!data.sendPush) return; // Only process intended pushes
+
+    try {
+      const usersSnap = await db.ref("users").once("value");
+      if (!usersSnap.exists()) return;
+
+      const users = usersSnap.val();
+      const tokens = [];
+      Object.keys(users).forEach(uid => {
+        const u = users[uid];
+        if (u.fcmToken) tokens.push(u.fcmToken);
+        if (u.token) tokens.push(u.token);
+      });
+
+      if (tokens.length === 0) return;
+
+      // Deduplicate tokens
+      const uniqueTokens = [...new Set(tokens)];
+
+      let message = {
+        notification: {
+          title: data.title || "New Announcement",
+          body: data.message || "",
+        },
+        data: {
+          type: "global_notice",
+          id: context.params.notifId,
+          click_action: "FLUTTER_NOTIFICATION_CLICK"
+        },
+        android: {
+          priority: "high"
+        }
+      };
+
+      if (data.customPayload) {
+        message = { ...data.customPayload };
+      }
+
+      // Send in batches of 500 (FCM limit)
+      const batchSize = 500;
+      for (let i = 0; i < uniqueTokens.length; i += batchSize) {
+        const tokenBatch = uniqueTokens.slice(i, i + batchSize);
+        await admin.messaging().sendEachForMulticast({
+          ...message,
+          tokens: tokenBatch
+        });
+      }
+      
+      console.log(`Global notification sent to ${uniqueTokens.length} devices.`);
+    } catch (error) {
+      console.error("Error sending global user push notification:", error);
+    }
+  });
+
+/**
+ * 7. Trigger on Specific User Notification
+ */
+exports.onUserNotification = functions.database
+  .ref("/users/{uid}/notifications/{notifId}")
+  .onCreate(async (snapshot, context) => {
+    const data = snapshot.val() || {};
+    if (!data.sendPush) return; // Only process intended pushes
+
+    const uid = context.params.uid;
+    try {
+      const userSnap = await db.ref(`users/${uid}`).once("value");
+      if (!userSnap.exists()) return;
+
+      const u = userSnap.val();
+      const token = u.fcmToken || u.token;
+      
+      if (!token) {
+        console.log(`No FCM token for user ${uid}`);
+        return;
+      }
+
+      let message = {
+        token: token,
+        notification: {
+          title: data.title || "New Notification",
+          body: data.message || "",
+        },
+        data: {
+          type: "user_notice",
+          id: context.params.notifId,
+          click_action: "FLUTTER_NOTIFICATION_CLICK"
+        },
+        android: {
+          priority: "high"
+        }
+      };
+
+      if (data.customPayload) {
+        message = { ...data.customPayload, token: token }; // Ensure token is preserved
+      }
+
+      await admin.messaging().send(message);
+      console.log(`Notification sent to user ${uid}`);
+    } catch (error) {
+      console.error(`Error sending user push notification to ${uid}:`, error);
+    }
+  });
+

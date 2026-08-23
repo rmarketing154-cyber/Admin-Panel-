@@ -38,10 +38,10 @@ export default function Dashboard({ data, setCurrentTab }: any) {
   }, [data.withdraws]);
 
   const stats = [
-    { label: 'Total Registered', value: data.users.length, color: 'text-indigo-600', bg: 'bg-indigo-100', border: 'border-indigo-500' },
-    { label: 'Pending Submissions', value: pendingSubmissions.length, color: 'text-amber-600', bg: 'bg-amber-100', border: 'border-amber-500' },
-    { label: 'Pending Payouts', value: pendingWithdraws.length, color: 'text-red-600', bg: 'bg-red-100', border: 'border-red-500' },
-    { label: 'Total Paid Out', value: '৳' + data.withdraws.filter((w:any)=>w.status==='approved').reduce((acc:number, w:any) => acc + Number(w.amount || 0), 0), color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-500' },
+    { label: 'Total Registered', value: data.users.length, color: 'text-indigo-600', icon: Users, icon3d: 'icon-3d-indigo', border: 'border-indigo-500' },
+    { label: 'Pending Submissions', value: pendingSubmissions.length, color: 'text-amber-600', icon: Inbox, icon3d: 'icon-3d-amber', border: 'border-amber-500' },
+    { label: 'Pending Payouts', value: pendingWithdraws.length, color: 'text-red-600', icon: Wallet, icon3d: 'icon-3d-rose', border: 'border-red-500' },
+    { label: 'Total Paid Out', value: '৳' + data.withdraws.filter((w:any)=>w.status==='approved').reduce((acc:number, w:any) => acc + Number(w.amount || 0), 0), color: 'text-emerald-600', icon: CheckCheck, icon3d: 'icon-3d-emerald', border: 'border-emerald-500' },
   ];
   
   const quickLinks = [
@@ -318,9 +318,14 @@ export default function Dashboard({ data, setCurrentTab }: any) {
       {/* Top Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((s, i) => (
-          <div key={i} className={`bg-white rounded-2xl p-5 border shadow-sm border-l-4 ${s.border} hover:shadow-md transition-shadow`}>
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{s.label}</div>
-            <div className={`text-2xl md:text-3xl font-black mt-2 ${s.color}`}>{s.value}</div>
+          <div key={i} className={`bg-white rounded-2xl p-4 sm:p-5 border shadow-sm border-l-4 ${s.border} hover:shadow-md transition-all flex items-center justify-between`}>
+            <div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{s.label}</div>
+              <div className={`text-2xl md:text-3xl font-black mt-1.5 ${s.color}`}>{s.value}</div>
+            </div>
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 ${s.icon3d} icon-3d shrink-0`}>
+              <s.icon size={22} className="stroke-[2.5]" />
+            </div>
           </div>
         ))}
       </div>
