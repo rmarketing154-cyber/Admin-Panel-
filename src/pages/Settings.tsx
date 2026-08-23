@@ -1,96 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { ref, update, set, push } from 'firebase/database';
+import { ref, update } from 'firebase/database';
 import { db } from '../lib/firebase';
-import { soundAlerts } from '../lib/sound';
 import Swal from 'sweetalert2';
-import { Coins, Save, Plus, X, BellRing, Smartphone, Send, ShieldCheck, Volume2, VolumeX, Play } from 'lucide-react';
+import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2 } from 'lucide-react';
 
 export default function Settings({ data }: any) {
   const s = data.settings || {};
   
+  const [activeTab, setActiveTab] = useState<'financial' | 'levels'>('financial');
+
   const [rates, setRates] = useState({
-    userBonus: s.signup_bonus_user || 5,
-    refBonus: s.signup_bonus_referrer || 5,
-    commRate: s.commission_percent || 10,
-    minWd: s.min_withdraw || 100,
-    fee: s.withdraw_fee_percent || 6,
-    mntMode: s.maintenance_mode || false,
-    wdDisabled: s.withdraw_disabled || false
-  });
-
-  const [notifSettings, setNotifSettings] = useState({
-    pushMaster: s.push_master ?? true,
-    gmailNotif: s.notif_gmail ?? true,
-    withdrawalNotif: s.notif_withdrawal ?? true,
-    newUserNotif: s.notif_new_user ?? true,
-    reportNotif: s.notif_report ?? true,
-  });
-
-  const [audioSettings, setAudioSettings] = useState({
-    audioMaster: s.audio_alert_enabled !== undefined ? s.audio_alert_enabled : (localStorage.getItem('audio_alert_enabled') !== 'false'),
-    audioSubmissions: s.audio_submissions !== undefined ? s.audio_submissions : (localStorage.getItem('audio_submissions') !== 'false'),
-    audioPushNotif: s.audio_push_notif !== undefined ? s.audio_push_notif : (localStorage.getItem('audio_push_notif') !== 'false'),
-    audioWithdrawals: s.audio_withdrawals !== undefined ? s.audio_withdrawals : (localStorage.getItem('audio_withdrawals') !== 'false'),
-    audioChats: s.audio_chats !== undefined ? s.audio_chats : (localStorage.getItem('audio_chats') !== 'false'),
+    userBonus: s.signup_bonus_user ?? 5,
+    refBonus: s.signup_bonus_referrer ?? 5,
+    commRate: s.commission_percent ?? 10,
+    minWd: s.min_withdraw ?? 100,
+    fee: s.withdraw_fee_percent ?? 6,
   });
 
   const [levels, setLevels] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    if (s.signup_bonus_user !== undefined) {
+      setRates({
+        userBonus: s.signup_bonus_user ?? 5,
+        refBonus: s.signup_bonus_referrer ?? 5,
+        commRate: s.commission_percent ?? 10,
+        minWd: s.min_withdraw ?? 100,
+        fee: s.withdraw_fee_percent ?? 6,
+      });
+    }
     if (s.levels) {
       setLevels(s.levels);
-    }
-    if (s.audio_alert_enabled !== undefined) {
-      setAudioSettings(prev => ({
-        ...prev,
-        audioMaster: s.audio_alert_enabled,
-        audioSubmissions: s.audio_submissions ?? prev.audioSubmissions,
-        audioPushNotif: s.audio_push_notif ?? prev.audioPushNotif,
-        audioWithdrawals: s.audio_withdrawals ?? prev.audioWithdrawals,
-        audioChats: s.audio_chats ?? prev.audioChats,
-      }));
     }
   }, [s]);
 
   const saveSettings = async () => {
-    // Sync audio preferences to localStorage for persistent browser state
-    localStorage.setItem('audio_alert_enabled', String(audioSettings.audioMaster));
-    localStorage.setItem('audio_submissions', String(audioSettings.audioSubmissions));
-    localStorage.setItem('audio_push_notif', String(audioSettings.audioPushNotif));
-    localStorage.setItem('audio_withdrawals', String(audioSettings.audioWithdrawals));
-    localStorage.setItem('audio_chats', String(audioSettings.audioChats));
-
-    await update(ref(db, "settings"), {
-      signup_bonus_user: Number(rates.userBonus),
-      signup_bonus_referrer: Number(rates.refBonus),
-      commission_percent: Number(rates.commRate),
-      min_withdraw: Number(rates.minWd),
-      withdraw_fee_percent: Number(rates.fee),
-      maintenance_mode: rates.mntMode,
-      withdraw_disabled: rates.wdDisabled,
-      push_master: notifSettings.pushMaster,
-      notif_gmail: notifSettings.gmailNotif,
-      notif_withdrawal: notifSettings.withdrawalNotif,
-      notif_new_user: notifSettings.newUserNotif,
-      notif_report: notifSettings.reportNotif,
-      audio_alert_enabled: audioSettings.audioMaster,
-      audio_submissions: audioSettings.audioSubmissions,
-      audio_push_notif: audioSettings.audioPushNotif,
-      audio_withdrawals: audioSettings.audioWithdrawals,
-      audio_chats: audioSettings.audioChats,
-      levels: levels
-    });
-    Swal.fire('Saved', 'All system, push notification & audio alert settings saved successfully!', 'success');
-  };
-
-  const testAdminPush = async (type: string, title: string, body: string) => {
-    await push(ref(db, "admin_notifications"), {
-      title,
-      body,
-      type,
-      timestamp: Date.now()
-    });
-    Swal.fire('Dispatched', `Test ${type} push notification trigger created!`, 'success');
+    setSaving(true);
+    try {
+      await update(ref(db, "settings"), {
+        signup_bonus_user: Number(rates.userBonus),
+        signup_bonus_referrer: Number(rates.refBonus),
+        commission_percent: Number(rates.commRate),
+        min_withdraw: Number(rates.minWd),
+        withdraw_fee_percent: Number(rates.fee),
+        levels: levels
+      });
+      Swal.fire('Saved!', 'Financial rates & level configurations updated successfully.', 'success');
+    } catch (e) {
+      console.error(e);
+      Swal.fire('Error', 'Failed to save settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addLevel = () => {
@@ -115,424 +77,227 @@ export default function Settings({ data }: any) {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex flex-col flex-1">
-      <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-2 font-bold text-slate-800">
-        <Coins className="text-amber-500" size={20} /> Financial Rates &amp; Levels
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50/50">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
+              <Coins size={14} /> Platform Economics & Reward Structures
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">Financial Rates & Tiers</h1>
+            <p className="text-indigo-200 text-xs sm:text-sm max-w-xl">
+              Configure signup bonuses, referral commission percentages, withdrawal thresholds, fees, and progressive user tier rates.
+            </p>
+          </div>
+          <button
+            onClick={saveSettings}
+            disabled={saving}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all shrink-0 disabled:opacity-50"
+          >
+            <Save size={16} /> {saving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
       </div>
-      
-      <div className="p-4 sm:p-6 space-y-6 sm:space-y-8">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Signup Bonus (User)</label>
-            <input type="number" value={rates.userBonus} onChange={e=>setRates({...rates, userBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Signup Bonus (Ref)</label>
-            <input type="number" value={rates.refBonus} onChange={e=>setRates({...rates, refBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Commission %</label>
-            <input type="number" value={rates.commRate} onChange={e=>setRates({...rates, commRate: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Min Withdraw (৳)</label>
-            <input type="number" value={rates.minWd} onChange={e=>setRates({...rates, minWd: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 mb-1">Withdraw Fee %</label>
-            <input type="number" value={rates.fee} onChange={e=>setRates({...rates, fee: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-indigo-500" />
-          </div>
-        </div>
 
-        <div className="flex flex-col md:flex-row gap-4 pt-2 border-t border-slate-100">
-          <label className="flex items-center gap-4 cursor-pointer bg-slate-50 border border-slate-200 p-4 rounded-xl flex-1 hover:border-indigo-300 transition-colors">
-            <div className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input 
-                type="checkbox" 
-                checked={rates.mntMode} 
-                onChange={e => setRates({...rates, mntMode: e.target.checked})} 
-                className="sr-only peer" 
-              />
-              <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-            </div>
-            <div>
-              <div className="font-bold text-slate-800">Maintenance Mode</div>
-              <div className="text-xs text-slate-500 mt-0.5">Turn on to block user access temporarily</div>
-            </div>
-          </label>
-
-          <label className="flex items-center gap-4 cursor-pointer bg-slate-50 border border-slate-200 p-4 rounded-xl flex-1 hover:border-indigo-300 transition-colors">
-            <div className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input 
-                type="checkbox" 
-                checked={rates.wdDisabled} 
-                onChange={e => setRates({...rates, wdDisabled: e.target.checked})} 
-                className="sr-only peer" 
-              />
-              <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
-            </div>
-            <div>
-              <div className="font-bold text-slate-800">Disable Withdrawals</div>
-              <div className="text-xs text-slate-500 mt-0.5">Pause all new cashout requests</div>
-            </div>
-          </label>
-        </div>
-
-        <div>
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="font-bold text-slate-800 text-sm">Level Configurations</h3>
-            <button onClick={addLevel} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors">
-              <Plus size={14} /> Add Level
-            </button>
-          </div>
-          <div className="space-y-3">
-            {Object.keys(levels).sort((a,b)=>Number(a)-Number(b)).map(k => {
-              const l = levels[k];
-              return (
-                <div key={k} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row gap-4 items-center relative">
-                  <div className="absolute top-2 right-2 md:static md:order-last">
-                    <button onClick={()=>deleteLevel(k)} className="p-1 text-slate-400 hover:text-red-500 transition-colors"><X size={18}/></button>
-                  </div>
-                  <div className="w-full md:w-auto font-black text-slate-400 text-lg mr-4">LVL {k}</div>
-                  <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 w-full">
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase">New Rate (৳)</label>
-                      <input type="number" value={l.new_rate} onChange={e=>updateLevel(k, 'new_rate', e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500 text-sm font-bold" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Old Rate (৳)</label>
-                      <input type="number" value={l.old_rate} onChange={e=>updateLevel(k, 'old_rate', e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500 text-sm font-bold" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase">Req Mails</label>
-                      <input type="number" value={l.req} onChange={e=>updateLevel(k, 'req', e.target.value)} className="w-full mt-1 bg-white border border-slate-200 rounded-lg px-3 py-1.5 outline-none focus:border-indigo-500 text-sm font-bold" />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Audio & Sound Alerts Settings for Panel */}
-        <div className="pt-6 border-t border-slate-100">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Volume2 className="text-indigo-600" size={20} />
-              <h3 className="font-bold text-slate-800 text-base">Audio &amp; Sound Alerts (Panel)</h3>
-            </div>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider ${audioSettings.audioMaster ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
-              {audioSettings.audioMaster ? 'Sound Enabled' : 'Muted'}
-            </span>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-            {/* Master Audio Switch */}
-            <div className="flex items-center justify-between p-3.5 bg-white border border-slate-200 rounded-xl shadow-xs">
-              <div>
-                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                  {audioSettings.audioMaster ? <Volume2 size={18} className="text-indigo-600" /> : <VolumeX size={18} className="text-slate-400" />}
-                  Master Audio Alert Sound
-                </div>
-                <div className="text-xs text-slate-500 mt-0.5">Play real-time audio chimes when new user submissions, push alerts, or cashouts arrive in admin panel</div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={audioSettings.audioMaster} 
-                  onChange={e => {
-                    const val = e.target.checked;
-                    setAudioSettings({...audioSettings, audioMaster: val});
-                    localStorage.setItem('audio_alert_enabled', String(val));
-                    if (val) {
-                      soundAlerts.playSubmissionAlert();
-                    }
-                  }} 
-                  className="sr-only peer" 
-                />
-                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
-
-            {/* Sub Categories */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Submissions Sound */}
-              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => soundAlerts.playSubmissionAlert()} 
-                    title="Preview Sound"
-                    className="p-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors"
-                  >
-                    <Play size={14} />
-                  </button>
-                  <div>
-                    <div className="font-bold text-slate-800 text-xs">📥 New User Submissions Audio</div>
-                    <div className="text-[11px] text-slate-500">Chime on new Gmail / account submission</div>
-                  </div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={audioSettings.audioSubmissions} 
-                  onChange={e => {
-                    const val = e.target.checked;
-                    setAudioSettings({...audioSettings, audioSubmissions: val});
-                    localStorage.setItem('audio_submissions', String(val));
-                  }} 
-                  disabled={!audioSettings.audioMaster}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
-                />
-              </div>
-
-              {/* Push Notification Sound */}
-              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => soundAlerts.playPushNotificationAlert()} 
-                    title="Preview Sound"
-                    className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg transition-colors"
-                  >
-                    <Play size={14} />
-                  </button>
-                  <div>
-                    <div className="font-bold text-slate-800 text-xs">🔔 Push Notifications &amp; Alerts Audio</div>
-                    <div className="text-[11px] text-slate-500">Alert tone on push broadcast &amp; system alerts</div>
-                  </div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={audioSettings.audioPushNotif} 
-                  onChange={e => {
-                    const val = e.target.checked;
-                    setAudioSettings({...audioSettings, audioPushNotif: val});
-                    localStorage.setItem('audio_push_notif', String(val));
-                  }} 
-                  disabled={!audioSettings.audioMaster}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
-                />
-              </div>
-
-              {/* Withdrawals Sound */}
-              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => soundAlerts.playWithdrawalAlert()} 
-                    title="Preview Sound"
-                    className="p-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors"
-                  >
-                    <Play size={14} />
-                  </button>
-                  <div>
-                    <div className="font-bold text-slate-800 text-xs">💰 Withdrawal Requests Audio</div>
-                    <div className="text-[11px] text-slate-500">Cashout request audio notification</div>
-                  </div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={audioSettings.audioWithdrawals} 
-                  onChange={e => {
-                    const val = e.target.checked;
-                    setAudioSettings({...audioSettings, audioWithdrawals: val});
-                    localStorage.setItem('audio_withdrawals', String(val));
-                  }} 
-                  disabled={!audioSettings.audioMaster}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
-                />
-              </div>
-
-              {/* Support Chat Sound */}
-              <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2.5">
-                  <button 
-                    type="button" 
-                    onClick={() => soundAlerts.playChatAlert()} 
-                    title="Preview Sound"
-                    className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 rounded-lg transition-colors"
-                  >
-                    <Play size={14} />
-                  </button>
-                  <div>
-                    <div className="font-bold text-slate-800 text-xs">💬 Live Support Message Audio</div>
-                    <div className="text-[11px] text-slate-500">Ping when user sends support message</div>
-                  </div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={audioSettings.audioChats} 
-                  onChange={e => {
-                    const val = e.target.checked;
-                    setAudioSettings({...audioSettings, audioChats: val});
-                    localStorage.setItem('audio_chats', String(val));
-                  }} 
-                  disabled={!audioSettings.audioMaster}
-                  className="w-4 h-4 text-indigo-600 rounded cursor-pointer disabled:opacity-40" 
-                />
-              </div>
-            </div>
-
-            {/* Test Audio Alert Sounds */}
-            <div className="pt-2">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Test Panel Audio Sounds</div>
-              <div className="flex flex-wrap gap-2">
-                <button 
-                  type="button"
-                  onClick={() => soundAlerts.playSubmissionAlert()} 
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Play size={12} /> Test Submission Chime
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => soundAlerts.playPushNotificationAlert()} 
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Play size={12} /> Test Push Alert Tone
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => soundAlerts.playWithdrawalAlert()} 
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Play size={12} /> Test Cashout Ding
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => soundAlerts.playChatAlert()} 
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-700 hover:bg-purple-100 rounded-lg text-xs font-bold transition-colors"
-                >
-                  <Play size={12} /> Test Chat Ping
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin Mobile & Push Notification Settings */}
-        <div className="pt-6 border-t border-slate-100">
-          <div className="flex items-center gap-2 mb-4">
-            <Smartphone className="text-indigo-600" size={20} />
-            <h3 className="font-bold text-slate-800 text-base">Android Admin App &amp; Push Notifications</h3>
-          </div>
-
-          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
-            <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-              <div>
-                <div className="font-bold text-slate-800 text-sm">Master Push Notification</div>
-                <div className="text-xs text-slate-500">Enable or disable all real-time FCM admin notifications</div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={notifSettings.pushMaster} 
-                  onChange={e => setNotifSettings({...notifSettings, pushMaster: e.target.checked})} 
-                  className="sr-only peer" 
-                />
-                <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
-                <div>
-                  <div className="font-bold text-slate-800 text-xs">📧 Gmail Submissions</div>
-                  <div className="text-[11px] text-slate-500">Alert on new inbox submission</div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={notifSettings.gmailNotif} 
-                  onChange={e => setNotifSettings({...notifSettings, gmailNotif: e.target.checked})} 
-                  disabled={!notifSettings.pushMaster}
-                  className="w-4 h-4 text-indigo-600 rounded" 
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
-                <div>
-                  <div className="font-bold text-slate-800 text-xs">💰 Withdrawal Requests</div>
-                  <div className="text-[11px] text-slate-500">Alert on new cashout request</div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={notifSettings.withdrawalNotif} 
-                  onChange={e => setNotifSettings({...notifSettings, withdrawalNotif: e.target.checked})} 
-                  disabled={!notifSettings.pushMaster}
-                  className="w-4 h-4 text-indigo-600 rounded" 
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
-                <div>
-                  <div className="font-bold text-slate-800 text-xs">👤 New User Registration</div>
-                  <div className="text-[11px] text-slate-500">Alert when new user signs up</div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={notifSettings.newUserNotif} 
-                  onChange={e => setNotifSettings({...notifSettings, newUserNotif: e.target.checked})} 
-                  disabled={!notifSettings.pushMaster}
-                  className="w-4 h-4 text-indigo-600 rounded" 
-                />
-              </label>
-
-              <label className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl cursor-pointer">
-                <div>
-                  <div className="font-bold text-slate-800 text-xs">⚠️ Reports &amp; Disputes</div>
-                  <div className="text-[11px] text-slate-500">Alert on user report submission</div>
-                </div>
-                <input 
-                  type="checkbox" 
-                  checked={notifSettings.reportNotif} 
-                  onChange={e => setNotifSettings({...notifSettings, reportNotif: e.target.checked})} 
-                  disabled={!notifSettings.pushMaster}
-                  className="w-4 h-4 text-indigo-600 rounded" 
-                />
-              </label>
-            </div>
-
-            {/* Test Triggers */}
-            <div className="pt-2">
-              <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">Test Notification Dispatches</div>
-              <div className="flex flex-wrap gap-2">
-                <button 
-                  type="button"
-                  onClick={() => testAdminPush('gmail', '📧 নতুন Gmail এসেছে', 'নতুন Gmail এসেছে। Admin Panel থেকে ইনবক্স চেক করুন।')} 
-                  className="px-3 py-1.5 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 rounded-lg text-xs font-bold transition-colors"
-                >
-                  Test Gmail Alert
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => testAdminPush('withdrawal', '💰 নতুন উত্তোলন রিকোয়েস্ট', 'একজন ইউজার নতুন উত্তোলন রিকোয়েস্ট করেছে।')} 
-                  className="px-3 py-1.5 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 rounded-lg text-xs font-bold transition-colors"
-                >
-                  Test Withdrawal Alert
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => testAdminPush('user', '👤 নতুন সদস্য রেজিস্ট্রেশন', 'নতুন একজন সদস্য রেজিস্ট্রেশন করেছে।')} 
-                  className="px-3 py-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg text-xs font-bold transition-colors"
-                >
-                  Test User Alert
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => testAdminPush('report', '⚠️ নতুন রিপোর্ট', 'একজন ইউজার নতুন রিপোর্ট জমা দিয়েছে।')} 
-                  className="px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg text-xs font-bold transition-colors"
-                >
-                  Test Report Alert
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <button onClick={saveSettings} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-colors shadow-sm">
-          <Save size={18} /> Save All Rates, Audio &amp; Notification Settings
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+        <button
+          onClick={() => setActiveTab('financial')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'financial'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Percent size={16} /> Financial & Bonus Rates
+        </button>
+        <button
+          onClick={() => setActiveTab('levels')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'levels'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Layers size={16} /> User Level Tiers ({Object.keys(levels).length})
         </button>
       </div>
+
+      {/* TAB 1: FINANCIAL & BONUS RATES */}
+      {activeTab === 'financial' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Signup Bonus (User) */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">User Signup Bonus</span>
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Award size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    value={rates.userBonus} 
+                    onChange={e => setRates({...rates, userBonus: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Bonus amount credited instantly when a new user registers.</p>
+              </div>
+            </div>
+
+            {/* Signup Bonus (Referrer) */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Referrer Signup Bonus</span>
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Award size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    value={rates.refBonus} 
+                    onChange={e => setRates({...rates, refBonus: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Bonus credited to the referrer when someone uses their link.</p>
+              </div>
+            </div>
+
+            {/* Commission Percent */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Referral Commission</span>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Percent size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    value={rates.commRate} 
+                    onChange={e => setRates({...rates, commRate: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
+                  />
+                  <span className="text-xl font-bold text-slate-400">%</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Commission percentage earned from referred users' earnings.</p>
+              </div>
+            </div>
+
+            {/* Minimum Withdraw */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Minimum Withdrawal</span>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <DollarSign size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    value={rates.minWd} 
+                    onChange={e => setRates({...rates, minWd: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Minimum wallet balance required to request cashout.</p>
+              </div>
+            </div>
+
+            {/* Withdraw Fee */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Withdrawal Fee</span>
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Percent size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    value={rates.fee} 
+                    onChange={e => setRates({...rates, fee: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
+                  />
+                  <span className="text-xl font-bold text-slate-400">%</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Deduction percentage applied on withdrawal requests.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: LEVEL CONFIGURATIONS */}
+      {activeTab === 'levels' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">Progressive User Level Tiers</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Configure task rates and requirement thresholds for each user level.</p>
+            </div>
+            <button 
+              onClick={addLevel} 
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shrink-0"
+            >
+              <Plus size={16} /> Add New Level
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {Object.keys(levels).length === 0 ? (
+              <div className="py-12 text-center text-slate-400">
+                <Layers size={36} className="mx-auto text-slate-300 mb-2" />
+                <div className="font-bold text-slate-600">No level tiers configured yet</div>
+                <div className="text-xs text-slate-400 mt-1">Click "Add New Level" to set up progressive task rates.</div>
+              </div>
+            ) : (
+              Object.keys(levels).sort((a,b)=>Number(a)-Number(b)).map(k => {
+                const l = levels[k];
+                return (
+                  <div key={k} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row gap-4 items-center relative hover:border-indigo-200 transition-all">
+                    <div className="absolute top-3 right-3 md:static md:order-last">
+                      <button onClick={()=>deleteLevel(k)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><X size={18}/></button>
+                    </div>
+                    <div className="w-full md:w-28 font-black text-indigo-600 text-base flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-xs">LVL</span>
+                      {k}
+                    </div>
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">New Task Rate (৳)</label>
+                        <input type="number" value={l.new_rate} onChange={e=>updateLevel(k, 'new_rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Old Task Rate (৳)</label>
+                        <input type="number" value={l.old_rate} onChange={e=>updateLevel(k, 'old_rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Requirement (Completed Tasks)</label>
+                        <input type="number" value={l.req} onChange={e=>updateLevel(k, 'req', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

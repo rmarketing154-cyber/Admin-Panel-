@@ -165,6 +165,10 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        val assetLoader = WebViewAssetLoader.Builder()
+            .addPathHandler("/", AssetsPathHandler(this))
+            .build()
+
         binding.webView.apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -182,6 +186,13 @@ class MainActivity : AppCompatActivity() {
             addJavascriptInterface(AdminJsBridge(), "AndroidBridge")
 
             webViewClient = object : WebViewClient() {
+                override fun shouldInterceptRequest(
+                    view: WebView?,
+                    request: WebResourceRequest?
+                ): WebResourceResponse? {
+                    return assetLoader.shouldInterceptRequest(request?.url ?: return null)
+                }
+
                 override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                     super.onPageStarted(view, url, favicon)
                     binding.progressBar.visibility = View.VISIBLE
@@ -222,12 +233,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            loadUrl(tokenManager.getAdminUrl())
+            loadUrl("https://appassets.androidplatform.net/index.html")
         }
 
         binding.btnRetry.setOnClickListener {
             binding.errorView.visibility = View.GONE
-            binding.webView.reload()
+            binding.webView.loadUrl("https://appassets.androidplatform.net/index.html")
         }
     }
 

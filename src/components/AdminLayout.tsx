@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, Cpu, LogOut, LayoutDashboard, Inbox, CheckCircle2, Wallet, Users, Trophy, Star, Settings, MessageSquare, BellRing, Network, Coins, CreditCard, Clock, Megaphone, ScrollText, Volume2, VolumeX } from 'lucide-react';
+import { Menu, X, Cpu, LogOut, LayoutDashboard, Inbox, CheckCircle2, Wallet, Users, Trophy, Star, Settings, MessageSquare, BellRing, Network, Coins, CreditCard, Clock, Megaphone, ScrollText, Volume2, VolumeX, Activity, Wrench } from 'lucide-react';
 import { ref, update } from 'firebase/database';
 import { db } from '../lib/firebase';
 import { soundAlerts } from '../lib/sound';
@@ -45,6 +45,7 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
       title: 'Users & Growth',
       items: [
         { id: 'users', label: 'User Management', icon: Users, badge: data.users?.length },
+        { id: 'today_activity', label: 'Today Visits & Earnings', icon: Activity },
         { id: 'topsellers', label: 'Top 10 Sellers', icon: Trophy },
         { id: 'reviews', label: 'Review Moderation', icon: Star },
         { id: 'referrals', label: 'Referral Analytics', icon: Network },
@@ -54,9 +55,10 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
       title: 'App Rates & Settings',
       items: [
         { id: 'settings', label: 'Financial & Rates', icon: Coins },
+        { id: 'maintenance', label: 'Maintenance & Controls', icon: Wrench },
         { id: 'gateways', label: 'Payment Gateways', icon: CreditCard },
         { id: 'shifts', label: 'Review Shifts', icon: Clock },
-        { id: 'notices', label: 'Notice & Maintenance', icon: Megaphone },
+        { id: 'notices', label: 'Notice Board', icon: Megaphone },
       ]
     },
     {

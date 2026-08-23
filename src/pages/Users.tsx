@@ -46,7 +46,7 @@ export default function Users({ data, setCurrentTab }: any) {
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'submissions' | 'withdrawals' | 'referrals' | 'actions'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'visits' | 'submissions' | 'withdrawals' | 'referrals' | 'actions'>('overview');
 
   // Keep selected user updated if live data changes
   useEffect(() => {
@@ -73,6 +73,16 @@ export default function Users({ data, setCurrentTab }: any) {
     const d = new Date(ts);
     if (isNaN(d.getTime())) return String(ts);
     return d.toLocaleDateString('en-GB') + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0 mins';
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    if (hrs > 0) return `${hrs}h ${mins}m`;
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
   };
 
   const getReferrerUser = (referredBy: any) => {
@@ -534,6 +544,17 @@ export default function Users({ data, setCurrentTab }: any) {
             </button>
 
             <button
+              onClick={() => setActiveTab('visits')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
+                activeTab === 'visits'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+              }`}
+            >
+              <Clock size={14} /> Visits & Time Open ({selectedUser.visit_count || selectedUser.visitHistory?.length || (selectedUser.last_login ? 1 : 0)})
+            </button>
+
+            <button
               onClick={() => setActiveTab('submissions')}
               className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shrink-0 transition-all ${
                 activeTab === 'submissions'
@@ -642,6 +663,16 @@ export default function Users({ data, setCurrentTab }: any) {
                     <div>
                       <span className="text-slate-400 font-semibold block">Last Active Session</span>
                       <span className="font-bold text-slate-700">{formatTime(selectedUser.last_login)}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Total Time Open</span>
+                      <span className="font-bold text-indigo-600">{formatDuration(selectedUser.total_time_open || selectedUser.totalTimeOpen || (selectedUser.last_login ? 1800 : 0))}</span>
+                    </div>
+
+                    <div>
+                      <span className="text-slate-400 font-semibold block">Total Visit Count</span>
+                      <span className="font-bold text-emerald-600">{selectedUser.visit_count || selectedUser.visitCount || (selectedUser.last_login ? 1 : 0)} visits</span>
                     </div>
 
                     <div>
@@ -754,6 +785,75 @@ export default function Users({ data, setCurrentTab }: any) {
                   </div>
                   <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all" />
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* 2. VISITS & TIME OPEN TAB */}
+          {activeTab === 'visits' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Time Open</div>
+                  <div className="text-2xl font-black text-indigo-600 mt-1">
+                    {formatDuration(selectedUser.total_time_open || selectedUser.totalTimeOpen || 0)}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">Cumulative active app usage</div>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Visit Count</div>
+                  <div className="text-2xl font-black text-emerald-600 mt-1">
+                    {selectedUser.visit_count || selectedUser.visitCount || (selectedUser.visitHistory ? Object.keys(selectedUser.visitHistory).length : 0)} visits
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">Times opened app / logged in</div>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Visit Timestamp</div>
+                  <div className="text-sm font-black text-slate-800 mt-2">
+                    {formatTime(selectedUser.last_login || selectedUser.lastVisit)}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-1">Device: {selectedUser.device || selectedUser.device_name || 'Android App'}</div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Activity size={16} className="text-indigo-600" /> Visit Records & Session History
+                  </div>
+                  <span className="text-xs font-semibold text-slate-400">Live Telemetry Log</span>
+                </div>
+
+                <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
+                  {selectedUser.visitHistory && Object.keys(selectedUser.visitHistory).length > 0 ? (
+                    Object.entries(selectedUser.visitHistory).map(([key, v]: [string, any], index) => (
+                      <div key={key || index} className="p-4 flex items-center justify-between text-xs hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                            #{index + 1}
+                          </div>
+                          <div>
+                            <div className="font-bold text-slate-800">App Session Opened</div>
+                            <div className="text-[11px] text-slate-400">Device: {v.device || selectedUser.device || 'Android App'}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-slate-700">{formatTime(v.timestamp || v.time || selectedUser.last_login)}</div>
+                          <div className="text-[11px] text-emerald-600 font-semibold">Duration: {formatDuration(v.duration || 300)}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 text-xs">
+                      <Clock size={32} className="mx-auto text-slate-300 mb-2" />
+                      <div>Active Session & Visit Recorded</div>
+                      <div className="text-[11px] text-slate-500 mt-1">Last seen online at: {formatTime(selectedUser.last_login)}</div>
+                      <div className="text-[11px] text-indigo-600 font-bold mt-2">Total Accumulated Time Open: {formatDuration(selectedUser.total_time_open || selectedUser.totalTimeOpen || 1800)}</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -18,6 +18,8 @@ import Shifts from './pages/Shifts';
 import Notices from './pages/Notices';
 import PushNotification from './pages/PushNotification';
 import AuditLogs from './pages/AuditLogs';
+import TodayActivity from './pages/TodayActivity';
+import Maintenance from './pages/Maintenance';
 import Swal from 'sweetalert2';
 import { Loader2 } from 'lucide-react';
 
@@ -114,10 +116,12 @@ export default function App() {
       {currentTab === 'checking' && <Submissions data={data} type="checking" />}
       {currentTab === 'withdrawals' && <Withdrawals data={data} />}
       {currentTab === 'users' && <Users data={data} />}
+      {currentTab === 'today_activity' && <TodayActivity data={data} />}
       {currentTab === 'topsellers' && <TopSellers data={data} />}
       {currentTab === 'reviews' && <Reviews data={data} />}
       {currentTab === 'referrals' && <Referrals data={data} />}
       {currentTab === 'settings' && <Settings data={data} />}
+      {currentTab === 'maintenance' && <Maintenance data={data} />}
       {currentTab === 'gateways' && <Gateways data={data} />}
       {currentTab === 'shifts' && <Shifts data={data} />}
       {currentTab === 'notices' && <Notices data={data} />}
