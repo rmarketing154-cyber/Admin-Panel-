@@ -31,6 +31,7 @@ import {
 
 export default function Submissions({ data, type = 'pending' }: any) {
   const [selectedMails, setSelectedMails] = useState<Record<string, Record<number, boolean>>>({});
+  const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
   const [subType, setSubType] = useState<string>(type);
   const [search, setSearch] = useState('');
   const [userModal, setUserModal] = useState<any>(null);
@@ -118,8 +119,14 @@ export default function Submissions({ data, type = 'pending' }: any) {
     }));
   };
 
-  const copyText = (text: string, label = 'Copied') => {
+  const copyText = (text: string, label = 'Copied', copyId?: string) => {
     copyToClipboardFallback(text);
+    if (copyId) {
+      setCopiedMap(prev => ({ ...prev, [copyId]: true }));
+      setTimeout(() => {
+        setCopiedMap(prev => ({ ...prev, [copyId]: false }));
+      }, 2000);
+    }
     Swal.fire({
       toast: true,
       position: 'top-end',
@@ -532,51 +539,103 @@ export default function Submissions({ data, type = 'pending' }: any) {
                       {/* Fields with Labels */}
                       <div className="space-y-2.5">
                         {/* Email box */}
-                        <div className="flex items-center gap-2 w-full">
-                          <div className="flex-1 bg-[#f8fafc] border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 min-w-0">
-                            <span className="text-[10px] font-black text-slate-400 tracking-wider w-11 shrink-0">EMAIL</span>
-                            <span className="text-sm font-semibold text-slate-800 truncate select-all min-w-0 flex-1">{m.email}</span>
-                          </div>
-                          <button 
-                            onClick={() => copyText(m.email, 'Email')} 
-                            className="p-3 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 rounded-xl text-slate-400 hover:text-[#4f46e5] transition-all shadow-xs shrink-0 flex items-center justify-center w-11 h-11"
-                            title="Copy Email"
-                          >
-                            <Copy size={16} />
-                          </button>
-                        </div>
+                        {(() => {
+                          const emailCopyId = `${s.key}-${idx}-email`;
+                          const isCopied = copiedMap[emailCopyId];
+                          return (
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={`flex-1 border rounded-xl px-4 py-3 flex items-center gap-3 min-w-0 transition-all ${isCopied ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20' : 'bg-[#f8fafc] border-slate-100'}`}>
+                                <span className={`text-[10px] font-black tracking-wider w-11 shrink-0 ${isCopied ? 'text-emerald-600' : 'text-slate-400'}`}>EMAIL</span>
+                                <span className={`text-sm font-semibold truncate select-all min-w-0 flex-1 ${isCopied ? 'text-emerald-950 font-bold' : 'text-slate-800'}`}>{m.email}</span>
+                                {isCopied && <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full shrink-0 animate-bounce">Copied!</span>}
+                              </div>
+                              <button 
+                                onClick={() => copyText(m.email, 'Email', emailCopyId)} 
+                                className={`p-3 border active:scale-95 rounded-xl transition-all shadow-xs shrink-0 flex items-center justify-center ${
+                                  isCopied 
+                                    ? 'bg-emerald-600 border-emerald-600 text-white px-3.5 w-auto gap-1.5 h-11' 
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-400 hover:text-[#4f46e5] w-11 h-11'
+                                }`}
+                                title="Copy Email"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check size={16} className="stroke-[3]" />
+                                    <span className="text-xs font-bold">Copied</span>
+                                  </>
+                                ) : (
+                                  <Copy size={16} />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })()}
 
                         {/* Password box */}
-                        <div className="flex items-center gap-2 w-full">
-                          <div className="flex-1 bg-[#f8fafc] border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 min-w-0">
-                            <span className="text-[10px] font-black text-slate-400 tracking-wider w-11 shrink-0">PASS</span>
-                            <span className="text-sm font-semibold text-slate-800 truncate select-all min-w-0 flex-1">{m.password}</span>
-                          </div>
-                          <button 
-                            onClick={() => copyText(m.password, 'Password')} 
-                            className="p-3 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 rounded-xl text-slate-400 hover:text-[#4f46e5] transition-all shadow-xs shrink-0 flex items-center justify-center w-11 h-11"
-                            title="Copy Password"
-                          >
-                            <Copy size={16} />
-                          </button>
-                        </div>
+                        {(() => {
+                          const passCopyId = `${s.key}-${idx}-pass`;
+                          const isCopied = copiedMap[passCopyId];
+                          return (
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={`flex-1 border rounded-xl px-4 py-3 flex items-center gap-3 min-w-0 transition-all ${isCopied ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20' : 'bg-[#f8fafc] border-slate-100'}`}>
+                                <span className={`text-[10px] font-black tracking-wider w-11 shrink-0 ${isCopied ? 'text-emerald-600' : 'text-slate-400'}`}>PASS</span>
+                                <span className={`text-sm font-semibold truncate select-all min-w-0 flex-1 ${isCopied ? 'text-emerald-950 font-bold' : 'text-slate-800'}`}>{m.password}</span>
+                                {isCopied && <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full shrink-0 animate-bounce">Copied!</span>}
+                              </div>
+                              <button 
+                                onClick={() => copyText(m.password, 'Password', passCopyId)} 
+                                className={`p-3 border active:scale-95 rounded-xl transition-all shadow-xs shrink-0 flex items-center justify-center ${
+                                  isCopied 
+                                    ? 'bg-emerald-600 border-emerald-600 text-white px-3.5 w-auto gap-1.5 h-11' 
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-400 hover:text-[#4f46e5] w-11 h-11'
+                                }`}
+                                title="Copy Password"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check size={16} className="stroke-[3]" />
+                                    <span className="text-xs font-bold">Copied</span>
+                                  </>
+                                ) : (
+                                  <Copy size={16} />
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })()}
 
                         {/* Optional Recovery Email box */}
-                        {m.recoveryEmail && (
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="flex-1 bg-[#f8fafc] border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 min-w-0">
-                              <span className="text-[10px] font-black text-slate-400 tracking-wider w-11 shrink-0">RECOV</span>
-                              <span className="text-sm font-semibold text-slate-800 truncate select-all min-w-0 flex-1">{m.recoveryEmail}</span>
+                        {m.recoveryEmail && (() => {
+                          const recCopyId = `${s.key}-${idx}-rec`;
+                          const isCopied = copiedMap[recCopyId];
+                          return (
+                            <div className="flex items-center gap-2 w-full">
+                              <div className={`flex-1 border rounded-xl px-4 py-3 flex items-center gap-3 min-w-0 transition-all ${isCopied ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20' : 'bg-[#f8fafc] border-slate-100'}`}>
+                                <span className={`text-[10px] font-black tracking-wider w-11 shrink-0 ${isCopied ? 'text-emerald-600' : 'text-slate-400'}`}>RECOV</span>
+                                <span className={`text-sm font-semibold truncate select-all min-w-0 flex-1 ${isCopied ? 'text-emerald-950 font-bold' : 'text-slate-800'}`}>{m.recoveryEmail}</span>
+                                {isCopied && <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full shrink-0 animate-bounce">Copied!</span>}
+                              </div>
+                              <button 
+                                onClick={() => copyText(m.recoveryEmail, 'Recovery Email', recCopyId)} 
+                                className={`p-3 border active:scale-95 rounded-xl transition-all shadow-xs shrink-0 flex items-center justify-center ${
+                                  isCopied 
+                                    ? 'bg-emerald-600 border-emerald-600 text-white px-3.5 w-auto gap-1.5 h-11' 
+                                    : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-400 hover:text-[#4f46e5] w-11 h-11'
+                                }`}
+                                title="Copy Recovery Email"
+                              >
+                                {isCopied ? (
+                                  <>
+                                    <Check size={16} className="stroke-[3]" />
+                                    <span className="text-xs font-bold">Copied</span>
+                                  </>
+                                ) : (
+                                  <Copy size={16} />
+                                )}
+                              </button>
                             </div>
-                            <button 
-                              onClick={() => copyText(m.recoveryEmail, 'Recovery Email')} 
-                              className="p-3 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 active:scale-95 rounded-xl text-[#94a3b8] hover:text-[#4f46e5] transition-all shadow-xs shrink-0 flex items-center justify-center w-11 h-11"
-                              title="Copy Recovery Email"
-                            >
-                              <Copy size={16} />
-                            </button>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
                   );

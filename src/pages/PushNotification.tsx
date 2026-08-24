@@ -27,47 +27,59 @@ export default function PushNotification() {
   useEffect(() => {
     // Fetch current popup settings
     const fetchPopup = async () => {
-      const snap = await get(ref(db, 'settings/global_popup'));
-      if (snap.exists()) {
-        setPopup(snap.val());
+      try {
+        const snap = await get(ref(db, 'settings/global_popup'));
+        if (snap.exists()) {
+          setPopup(snap.val());
+        }
+      } catch (err) {
+        console.error('Error fetching popup:', err);
       }
     };
     fetchPopup();
 
-    // Fetch user profile map for resolving names/emails
+    // Fetch user profile map once
     const fetchUsers = async () => {
-      const snap = await get(ref(db, 'users'));
-      if (snap.exists()) {
-        setUsersMap(snap.val());
+      try {
+        const snap = await get(ref(db, 'users'));
+        if (snap.exists()) {
+          setUsersMap(snap.val());
+        }
+      } catch (err) {
+        console.error('Error fetching users:', err);
       }
     };
     fetchUsers();
 
     // Listen to views and viewer UIDs
-    const unsubscribeViews = onValue(ref(db, 'settings/global_popup_views'), snap => {
-      if (snap.exists()) {
-        const val = snap.val();
-        const viewersList: { uid: string; name?: string; email?: string }[] = [];
-        
-        Object.keys(val).forEach(userUid => {
-          const userData = usersMap[userUid] || {};
-          viewersList.push({
-            uid: userUid,
-            name: userData.name || userData.displayName || 'User',
-            email: userData.email || userData.phone || userUid
+    const viewsRef = ref(db, 'settings/global_popup_views');
+    const unsubscribeViews = onValue(viewsRef, snap => {
+      try {
+        if (snap.exists()) {
+          const val = snap.val();
+          const viewersList: { uid: string; name?: string; email?: string }[] = [];
+          
+          Object.keys(val || {}).forEach(userUid => {
+            viewersList.push({
+              uid: userUid,
+              name: 'User',
+              email: userUid
+            });
           });
-        });
 
-        setPopupViewers(viewersList.reverse());
-      } else {
-        setPopupViewers([]);
+          setPopupViewers(viewersList.reverse());
+        } else {
+          setPopupViewers([]);
+        }
+      } catch (err) {
+        console.error('Error parsing popup views:', err);
       }
     });
 
     return () => {
-      // clean up
+      unsubscribeViews();
     };
-  }, [usersMap]);
+  }, []);
 
   const savePopupSettings = async () => {
     if (popup.active && !popup.message) {
