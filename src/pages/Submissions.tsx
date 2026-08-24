@@ -198,6 +198,7 @@ export default function Submissions({ data, type = 'pending' }: any) {
         status: 'approved',
         approvedCount: count,
         finalPayout: payout,
+        processedForBalance: true,
         processedAt: Date.now(),
         gmails: updatedGmails
       });
@@ -206,17 +207,65 @@ export default function Submissions({ data, type = 'pending' }: any) {
       const uSnap = await get(userRef);
       if (uSnap.exists()) {
         const u = uSnap.val();
+        const curBalance = Number(u.balance || 0);
+        const curEarnings = Number(u.totalEarnings || u.total_earnings || 0);
+        const curHold = Number(u.hold || 0);
+        const curApproved = Number(u.manual_approved_count || 0);
+
         await update(userRef, {
-          balance: (u.balance || 0) + payout,
-          hold: Math.max(0, (u.hold || 0) - Number(s.totalAmount || payout)),
-          manual_approved_count: (u.manual_approved_count || 0) + count
+          balance: Number((curBalance + payout).toFixed(2)),
+          totalEarnings: Number((curEarnings + payout).toFixed(2)),
+          hold: Math.max(0, Number((curHold - Number(s.totalAmount || payout)).toFixed(2))),
+          manual_approved_count: curApproved + count
         });
 
-        // Send Push notification
+        // Referral Commission handling (10% or configured percentage)
+        const referrerId = u.referredBy || u.referrerId;
+        if (referrerId && referrerId !== s.userId) {
+          try {
+            const refSnap = await get(ref(db, `users/${referrerId}`));
+            if (refSnap.exists()) {
+              const refData = refSnap.val();
+              const commPercent = Number(data.settings?.commissionPercent || data.settings?.commission_percent || 10);
+              const refBonus = Number(((payout * commPercent) / 100).toFixed(2));
+              
+              if (refBonus > 0) {
+                const refBal = Number(refData.balance || 0);
+                const refEarn = Number(refData.totalEarnings || refData.total_earnings || 0);
+                const refComm = Number(refData.referralEarnings || refData.referral_earnings || 0);
+
+                await update(ref(db, `users/${referrerId}`), {
+                  balance: Number((refBal + refBonus).toFixed(2)),
+                  totalEarnings: Number((refEarn + refBonus).toFixed(2)),
+                  referralEarnings: Number((refComm + refBonus).toFixed(2))
+                });
+
+                const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                await push(ref(db, `users/${referrerId}/notifications`), {
+                  title: 'রেফারেল বোনাস যোগ হয়েছে 🎉',
+                  desc: `আপনার রেফারেল সদস্যের সাবমিশন অনুমোদিত হওয়ায় ৳${refBonus} কমিশন আপনার একাউন্টে যোগ হয়েছে।`,
+                  message: `আপনার রেফারেল সদস্যের সাবমিশন অনুমোদিত হওয়ায় ৳${refBonus} কমিশন আপনার একাউন্টে যোগ হয়েছে।`,
+                  type: 'success',
+                  read: false,
+                  time: nowTime,
+                  timestamp: Date.now()
+                });
+              }
+            }
+          } catch (refErr) {
+            console.error('Error crediting referral commission:', refErr);
+          }
+        }
+
+        // Send Push notification to User
+        const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         await push(ref(db, `users/${s.userId}/notifications`), {
-          title: 'সাবমিশন অনুমোদিত হয়েছে!',
-          message: `আপনার সাবমিশনকৃত ${count} টি জিমেইলের জন্য ৳${payout} মূল ব্যালেন্সে যোগ করা হয়েছে।`,
+          title: 'সাবমিশন অনুমোদিত হয়েছে 🎉',
+          desc: `আপনার ${count}টি জিমেইল অ্যাপ্রুভ হয়েছে এবং ৳${payout} মেইন ব্যালেন্সে যোগ হয়েছে।`,
+          message: `আপনার ${count}টি জিমেইল অ্যাপ্রুভ হয়েছে এবং ৳${payout} মেইন ব্যালেন্সে যোগ হয়েছে।`,
           type: 'success',
+          read: false,
+          time: formattedTime,
           timestamp: Date.now()
         });
       }
@@ -229,7 +278,7 @@ export default function Submissions({ data, type = 'pending' }: any) {
     const { value: reason } = await Swal.fire({
       title: 'Reject Submission?',
       input: 'text',
-      inputPlaceholder: 'Reason (e.g. Wrong password, 2FA enabled, invalid mail)',
+      inputPlaceholder: 'Reason (e.g. ভুল পাসওয়ার্ড বা ২-স্টেপ ভেরিফিকেশন অন)',
       showCancelButton: true,
       confirmButtonText: 'Yes, Reject',
       confirmButtonColor: '#ef4444'
@@ -241,9 +290,11 @@ export default function Submissions({ data, type = 'pending' }: any) {
         status: 'rejected'
       }));
 
+      const finalReason = reason || 'ভুল পাসওয়ার্ড বা ২-স্টেপ ভেরিফিকেশন অন';
+
       await update(ref(db, `submissions/${s.key}`), {
         status: 'rejected',
-        rejectReason: reason || 'Incorrect or non-functional credentials',
+        rejectReason: finalReason,
         processedAt: Date.now(),
         gmails: updatedGmails
       });
@@ -253,13 +304,17 @@ export default function Submissions({ data, type = 'pending' }: any) {
       if (uSnap.exists()) {
         const u = uSnap.val();
         await update(userRef, { 
-          hold: Math.max(0, (u.hold || 0) - Number(s.totalAmount || 0)) 
+          hold: Math.max(0, Number(((u.hold || 0) - Number(s.totalAmount || 0)).toFixed(2))) 
         });
 
+        const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         await push(ref(db, `users/${s.userId}/notifications`), {
-          title: 'সাবমিশন বাতিল করা হয়েছে',
-          message: `আপনার সাবমিশন বাতিল করা হয়েছে। কারণ: ${reason || 'ভুল তথ্য'}`,
+          title: 'সাবমিশন বাতিল করা হয়েছে ⚠️',
+          desc: `আপনার সাবমিশন বাতিল করা হয়েছে। কারণ: ${finalReason}`,
+          message: `আপনার সাবমিশন বাতিল করা হয়েছে। কারণ: ${finalReason}`,
           type: 'danger',
+          read: false,
+          time: formattedTime,
           timestamp: Date.now()
         });
       }

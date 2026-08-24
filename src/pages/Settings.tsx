@@ -10,10 +10,12 @@ export default function Settings({ data }: any) {
   const [activeTab, setActiveTab] = useState<'financial' | 'levels'>('financial');
 
   const [rates, setRates] = useState({
+    newRate: s.newRate ?? s.new_rate ?? 10.5,
+    oldRate: s.oldRate ?? s.old_rate ?? 13.0,
     userBonus: s.signup_bonus_user ?? 5,
     refBonus: s.signup_bonus_referrer ?? 5,
-    commRate: s.commission_percent ?? 10,
-    minWd: s.min_withdraw ?? 100,
+    commRate: s.commissionPercent ?? s.commission_percent ?? 10,
+    minWd: s.minWithdraw ?? s.min_withdraw ?? 50,
     fee: s.withdraw_fee_percent ?? 6,
   });
 
@@ -21,12 +23,14 @@ export default function Settings({ data }: any) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (s.signup_bonus_user !== undefined) {
+    if (s.signup_bonus_user !== undefined || s.newRate !== undefined || s.new_rate !== undefined) {
       setRates({
+        newRate: s.newRate ?? s.new_rate ?? 10.5,
+        oldRate: s.oldRate ?? s.old_rate ?? 13.0,
         userBonus: s.signup_bonus_user ?? 5,
         refBonus: s.signup_bonus_referrer ?? 5,
-        commRate: s.commission_percent ?? 10,
-        minWd: s.min_withdraw ?? 100,
+        commRate: s.commissionPercent ?? s.commission_percent ?? 10,
+        minWd: s.minWithdraw ?? s.min_withdraw ?? 50,
         fee: s.withdraw_fee_percent ?? 6,
       });
     }
@@ -39,14 +43,20 @@ export default function Settings({ data }: any) {
     setSaving(true);
     try {
       await update(ref(db, "settings"), {
+        newRate: Number(rates.newRate),
+        new_rate: Number(rates.newRate),
+        oldRate: Number(rates.oldRate),
+        old_rate: Number(rates.oldRate),
+        commissionPercent: Number(rates.commRate),
+        commission_percent: Number(rates.commRate),
+        minWithdraw: Number(rates.minWd),
+        min_withdraw: Number(rates.minWd),
         signup_bonus_user: Number(rates.userBonus),
         signup_bonus_referrer: Number(rates.refBonus),
-        commission_percent: Number(rates.commRate),
-        min_withdraw: Number(rates.minWd),
         withdraw_fee_percent: Number(rates.fee),
         levels: levels
       });
-      Swal.fire('Saved!', 'Financial rates & level configurations updated successfully.', 'success');
+      Swal.fire('Saved!', 'Financial rates & settings updated successfully in real-time.', 'success');
     } catch (e) {
       console.error(e);
       Swal.fire('Error', 'Failed to save settings.', 'error');
@@ -129,6 +139,52 @@ export default function Settings({ data }: any) {
       {activeTab === 'financial' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* New Gmail Rate */}
+            <div className="bg-white p-6 rounded-2xl border border-indigo-200 shadow-sm space-y-3 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">New Gmail Rate</span>
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <Coins size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    value={rates.newRate} 
+                    onChange={e => setRates({...rates, newRate: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500 font-mono" 
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Default reward per verified fresh/new Gmail submission (settings/newRate).</p>
+              </div>
+            </div>
+
+            {/* Old Gmail Rate */}
+            <div className="bg-white p-6 rounded-2xl border border-purple-200 shadow-sm space-y-3 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-purple-600 uppercase tracking-wider">Old Gmail Rate</span>
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Coins size={20} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl font-bold text-slate-400">৳</span>
+                  <input 
+                    type="number" 
+                    step="0.1"
+                    value={rates.oldRate} 
+                    onChange={e => setRates({...rates, oldRate: Number(e.target.value)})}
+                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-purple-500 font-mono" 
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-2">Reward per verified aged/old Gmail submission (settings/oldRate).</p>
+              </div>
+            </div>
+
             {/* Signup Bonus (User) */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
               <div className="flex items-center justify-between">

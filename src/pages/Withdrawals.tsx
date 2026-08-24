@@ -124,16 +124,22 @@ export default function Withdrawals({ data }: any) {
     });
 
     if (trxId !== undefined) {
+      const finalTrxId = trxId.trim() || 'DIRECT_PAYMENT';
       await update(ref(db, `withdraw_requests/${w.key}`), {
         status: 'approved',
-        trxId: trxId || 'DIRECT_PAYMENT',
+        transactionId: finalTrxId,
+        trxId: finalTrxId,
         approvedAt: Date.now()
       });
 
+      const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       await push(ref(db, `users/${w.userId}/notifications`), {
-        title: 'উইথড্র সফল হয়েছে!',
-        message: `আপনার ৳${w.amount} উইথড্র সফলভাবে প্রদান করা হয়েছে। ${trxId ? `TrxID: ${trxId}` : ''}`,
+        title: 'উইথড্র সফল হয়েছে 🎉',
+        desc: `আপনার ৳${w.amount} উইথড্র সফলভাবে প্রদান করা হয়েছে। ${finalTrxId !== 'DIRECT_PAYMENT' ? `(TrxID: ${finalTrxId})` : ''}`,
+        message: `আপনার ৳${w.amount} উইথড্র সফলভাবে প্রদান করা হয়েছে। ${finalTrxId !== 'DIRECT_PAYMENT' ? `(TrxID: ${finalTrxId})` : ''}`,
         type: 'success',
+        read: false,
+        time: formattedTime,
         timestamp: Date.now()
       });
 
@@ -150,30 +156,43 @@ export default function Withdrawals({ data }: any) {
         </div>
       `,
       input: 'text',
-      inputPlaceholder: 'Rejection reason (e.g. Invalid account number)',
+      inputPlaceholder: 'Rejection reason (e.g. ভুল নাম্বার বা একাউন্ট বন্ধ)',
       showCancelButton: true,
       confirmButtonText: 'Yes, Reject & Refund',
       confirmButtonColor: '#ef4444'
     });
 
     if (reason !== undefined) {
+      const finalReason = reason.trim() || 'ভুল নাম্বার বা একাউন্ট বন্ধ';
       const userRef = ref(db, `users/${w.userId}`);
       const uSnap = await get(userRef);
       if (uSnap.exists()) {
         const u = uSnap.val();
-        await update(userRef, { balance: (u.balance || 0) + Number(w.amount) });
+        const curBal = Number(u.balance || 0);
+        const curWithdrawn = Number(u.total_withdrawn || u.totalWithdrawn || 0);
+        const refundAmt = Number(w.amount || 0);
+
+        await update(userRef, { 
+          balance: Number((curBal + refundAmt).toFixed(2)),
+          total_withdrawn: Math.max(0, Number((curWithdrawn - refundAmt).toFixed(2))),
+          totalWithdrawn: Math.max(0, Number((curWithdrawn - refundAmt).toFixed(2)))
+        });
       }
 
       await update(ref(db, `withdraw_requests/${w.key}`), {
         status: 'rejected',
-        rejectReason: reason || 'Invalid payment credentials',
+        rejectReason: finalReason,
         rejectedAt: Date.now()
       });
 
+      const formattedTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       await push(ref(db, `users/${w.userId}/notifications`), {
-        title: 'উইথড্র বাতিল ও রিফান্ড',
-        message: `আপনার ৳${w.amount} উইথড্র বাতিল করে মূল ব্যালেন্সে রিফান্ড করা হয়েছে। কারণ: ${reason || 'ভুল তথ্য'}`,
+        title: 'উইথড্র বাতিল ও রিফান্ড ⚠️',
+        desc: `আপনার ৳${w.amount} উইথড্র বাতিল করে একাউন্টে রিফান্ড করা হয়েছে। কারণ: ${finalReason}`,
+        message: `আপনার ৳${w.amount} উইথড্র বাতিল করে একাউন্টে রিফান্ড করা হয়েছে। কারণ: ${finalReason}`,
         type: 'danger',
+        read: false,
+        time: formattedTime,
         timestamp: Date.now()
       });
 

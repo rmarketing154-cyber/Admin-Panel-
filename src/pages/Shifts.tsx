@@ -41,12 +41,33 @@ export default function Shifts({ data }: any) {
   };
 
   const saveShifts = async () => {
-    await update(ref(db, "settings"), {
-      review_shifts: shifts,
-      report_time_enabled: reportTimeEnabled,
-      receive_time_enabled: receiveTimeEnabled
-    });
-    Swal.fire('Saved', 'Shifts timetable & settings saved', 'success');
+    try {
+      // Prepare normalized shift paths (shift1, shift2, etc.)
+      const shiftKeys = Object.keys(shifts);
+      const shiftUpdates: Record<string, any> = {};
+      
+      shiftKeys.forEach((k, idx) => {
+        const sObj = shifts[k];
+        shiftUpdates[`shift${idx + 1}`] = {
+          title: sObj.title || `Shift ${idx + 1}`,
+          time: sObj.time || '10:00 AM - 02:00 PM',
+          active: sObj.active !== false
+        };
+      });
+
+      await update(ref(db, "shifts"), shiftUpdates);
+
+      await update(ref(db, "settings"), {
+        review_shifts: shifts,
+        report_time_enabled: reportTimeEnabled,
+        receive_time_enabled: receiveTimeEnabled
+      });
+
+      Swal.fire('Saved', 'Shifts timetable & settings saved in real-time across all apps', 'success');
+    } catch (e) {
+      console.error('Error saving shifts:', e);
+      Swal.fire('Error', 'Failed to save shifts', 'error');
+    }
   };
 
   return (
