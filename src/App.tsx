@@ -36,7 +36,7 @@ export default function App() {
   
   const data = useAdminData(user);
 
-  // Listen for Deep Link navigation from Android FCM notification clicks
+  // Listen for Deep Link navigation from Android FCM notification clicks & 3-hour Gmail check reminder
   useEffect(() => {
     // Request Browser Notification permission if on Web
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -47,13 +47,43 @@ export default function App() {
       }
     }
 
+    // Set up 3-hour interval push notification reminder for checking Gmail
+    const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+    const triggerGmailReminder = () => {
+      const title = "⚠️ রিমাইন্ডার: জিমেইল চেক করুন";
+      const body = "ডিয়ার এডমিন, অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।";
+      
+      // Show browser notification if permitted
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification(title, {
+          body: body,
+          icon: 'https://files.catbox.moe/cqiv5k.png'
+        });
+      }
+
+      // Also trigger SweetAlert popup if admin is active on app
+      Swal.fire({
+        title: title,
+        text: body,
+        icon: 'info',
+        confirmButtonText: 'ঠিক আছে',
+        timer: 10000,
+        timerProgressBar: true
+      });
+    };
+
+    // Initial check timer setup
+    const reminderInterval = setInterval(triggerGmailReminder, THREE_HOURS_MS);
+
     (window as any).onNotificationDeepLink = (target: string, id?: string) => {
       console.log('FCM Deep Link received:', target, id);
       if (target) {
         setCurrentTab(target);
       }
     };
+
     return () => {
+      clearInterval(reminderInterval);
       delete (window as any).onNotificationDeepLink;
     };
   }, []);

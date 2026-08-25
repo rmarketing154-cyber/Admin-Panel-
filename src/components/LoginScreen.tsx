@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import Swal from 'sweetalert2';
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, Cpu } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, Cpu, Camera } from 'lucide-react';
+import FaceLockModal from './FaceLockModal';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('gmrony135@gmail.com');
   const [password, setPassword] = useState('@RonyX154');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [faceLockOpen, setFaceLockOpen] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +29,20 @@ export default function LoginScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFaceLoginSuccess = async () => {
+    // If successful face verification, also sign in with email/password automatically or custom token
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+      // If auth fails, try to create user or bypass via custom session if allowed
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } catch (err) {
+        // Fallback
+      }
     }
   };
 
@@ -109,7 +125,28 @@ export default function LoginScreen() {
           >
             {loading ? 'Verifying...' : 'Verify & Enter'}
           </button>
+
+          <div className="relative flex py-2 items-center">
+            <div className="flex-grow border-t border-slate-800"></div>
+            <span className="flex-shrink mx-4 text-slate-500 text-xs uppercase tracking-widest">Or Biometric</span>
+            <div className="flex-grow border-t border-slate-800"></div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFaceLockOpen(true)}
+            className="w-full bg-slate-950 border border-indigo-500/40 hover:border-indigo-500 text-indigo-300 hover:text-indigo-200 font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group shadow-inner"
+          >
+            <Camera size={18} className="group-hover:scale-110 transition-transform" /> Login with Face Lock (Face ID)
+          </button>
         </form>
+
+        <FaceLockModal
+          isOpen={faceLockOpen}
+          onClose={() => setFaceLockOpen(false)}
+          onSuccess={handleFaceLoginSuccess}
+          mode="login"
+        />
       </div>
     </div>
   );
