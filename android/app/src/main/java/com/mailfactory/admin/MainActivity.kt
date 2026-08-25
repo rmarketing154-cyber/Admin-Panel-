@@ -6,8 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -115,6 +115,7 @@ class MainActivity : AppCompatActivity() {
     private fun proceedAfterAuth() {
         binding.root.visibility = View.VISIBLE
         checkNotificationPermission()
+        checkBatteryOptimizations()
         try {
             com.mailfactory.admin.services.RealtimeAlertService.start(this)
         } catch (e: Exception) {
@@ -123,6 +124,23 @@ class MainActivity : AppCompatActivity() {
         setupWebView()
         setupSwipeRefresh()
         handleNotificationIntent(intent)
+    }
+
+    private fun checkBatteryOptimizations() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+            val packageName = packageName
+            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:$packageName")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error requesting ignore battery optimizations: ${e.message}")
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent?) {
