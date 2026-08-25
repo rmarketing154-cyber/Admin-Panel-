@@ -4,7 +4,7 @@ import { db } from '../lib/firebase';
 import Swal from 'sweetalert2';
 import { MessageSquareText, Save, Clock, MousePointerClick, Eye, Trash2, Plus, UserCheck, Search, AlertCircle } from 'lucide-react';
 
-export default function PushNotification() {
+export default function PushNotification({ data }: any) {
   const [activeTab, setActiveTab] = useState<'popup' | 'history'>('popup');
   
   // Target State
@@ -21,7 +21,6 @@ export default function PushNotification() {
 
   // History & Viewer Details State
   const [popupViewers, setPopupViewers] = useState<{ uid: string; name?: string; email?: string }[]>([]);
-  const [usersMap, setUsersMap] = useState<Record<string, any>>({});
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -38,19 +37,6 @@ export default function PushNotification() {
     };
     fetchPopup();
 
-    // Fetch user profile map once
-    const fetchUsers = async () => {
-      try {
-        const snap = await get(ref(db, 'users'));
-        if (snap.exists()) {
-          setUsersMap(snap.val());
-        }
-      } catch (err) {
-        console.error('Error fetching users:', err);
-      }
-    };
-    fetchUsers();
-
     // Listen to views and viewer UIDs
     const viewsRef = ref(db, 'settings/global_popup_views');
     const unsubscribeViews = onValue(viewsRef, snap => {
@@ -59,11 +45,19 @@ export default function PushNotification() {
           const val = snap.val();
           const viewersList: { uid: string; name?: string; email?: string }[] = [];
           
+          // Use users data from props if available to resolve names
+          const users = data?.users || [];
+          const usersMap: Record<string, any> = {};
+          users.forEach((u: any) => {
+            usersMap[u.uid] = u;
+          });
+
           Object.keys(val || {}).forEach(userUid => {
+            const userProfile = usersMap[userUid];
             viewersList.push({
               uid: userUid,
-              name: 'User',
-              email: userUid
+              name: userProfile?.username || userProfile?.name || 'Unknown User',
+              email: userProfile?.email || 'N/A'
             });
           });
 
@@ -79,7 +73,7 @@ export default function PushNotification() {
     return () => {
       unsubscribeViews();
     };
-  }, []);
+  }, [data?.users]);
 
   const savePopupSettings = async () => {
     if (popup.active && !popup.message) {

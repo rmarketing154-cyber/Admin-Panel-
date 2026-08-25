@@ -19,14 +19,29 @@ export default function SupportChat({ data }: any) {
 
   const openChat = async (uid: string) => {
     setActiveUid(uid);
-    // Mark unread as read
-    const chat = data.chats.find((c:any) => c.uid === uid);
+    markAsRead(uid);
+  };
+
+  const markAsRead = async (uid: string) => {
+    const chat = data.chats.find((c: any) => c.uid === uid);
     if (chat && chat.unread) {
-      // we would need to mark each unread msg as read in the DB, 
-      // but to keep it simple, we can just update a single flag if we stored it that way.
-      // Since it's stored per message, let's just assume we read it now.
+      const updates: any = {};
+      chat.msgs.forEach((m: any) => {
+        if (m.from === 'user' && !m.read) {
+          updates[`${uid}/${m.msgKey}/read`] = true;
+        }
+      });
+      if (Object.keys(updates).length > 0) {
+        await update(ref(db, 'support_chats'), updates);
+      }
     }
   };
+
+  useEffect(() => {
+    if (activeUid) {
+      markAsRead(activeUid);
+    }
+  }, [data.chats, activeUid]);
 
   const sendReply = async () => {
     if (!replyText.trim() || !activeUid) return;
@@ -54,8 +69,13 @@ export default function SupportChat({ data }: any) {
             <div key={m.msgKey} className={`flex ${m.from === 'admin' ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${m.from === 'admin' ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-sm shadow-sm'}`}>
                 <div>{m.message}</div>
-                <div className={`text-[10px] mt-1 ${m.from === 'admin' ? 'text-indigo-200' : 'text-slate-400'}`}>
+                <div className={`text-[10px] mt-1 flex items-center gap-1 ${m.from === 'admin' ? 'text-indigo-200' : 'text-slate-400'}`}>
                   {new Date(m.timestamp || 0).toLocaleTimeString()}
+                  {m.from === 'admin' && (
+                    <span className="font-bold">
+                      {m.read ? '• Read' : '• Sent'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -88,18 +108,22 @@ export default function SupportChat({ data }: any) {
       </div>
       <div className="flex-1 overflow-y-auto">
         {chats.length === 0 && <div className="text-center text-slate-500 py-10">No active conversations</div>}
-        {chats.map((c: any) => {
-          const user = data.users.find((u:any) => u.uid === c.uid);
-          return (
-            <div key={c.uid} onClick={() => openChat(c.uid)} className={`p-4 border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${c.unread ? 'bg-indigo-50/50 border-l-4 border-l-indigo-500' : ''}`}>
-              <div className="flex justify-between items-center mb-1">
-                <div className="font-bold text-slate-800">{user?.username || 'User'}</div>
-                <div className="text-xs text-slate-400">{c.lastMsg ? new Date(c.lastMsg.timestamp).toLocaleTimeString() : ''}</div>
+          {chats.map((c: any) => {
+            const user = data.users.find((u:any) => u.uid === c.uid);
+            return (
+              <div key={c.uid} onClick={() => openChat(c.uid)} className={`p-4 border-b border-slate-100 hover:bg-slate-50 cursor-pointer relative ${c.unread ? 'bg-indigo-50/50' : ''}`}>
+                {c.unread && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500" />}
+                <div className="flex justify-between items-center mb-1">
+                  <div className="flex items-center gap-2">
+                    <div className="font-bold text-slate-800">{user?.username || 'User'}</div>
+                    {c.unread && <span className="bg-indigo-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold">NEW</span>}
+                  </div>
+                  <div className="text-xs text-slate-400">{c.lastMsg ? new Date(c.lastMsg.timestamp).toLocaleTimeString() : ''}</div>
+                </div>
+                <div className={`text-sm truncate ${c.unread ? 'text-slate-900 font-medium' : 'text-slate-500'}`}>{c.lastMsg?.message}</div>
               </div>
-              <div className="text-sm text-slate-600 truncate">{c.lastMsg?.message}</div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
     </div>
   );

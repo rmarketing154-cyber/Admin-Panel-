@@ -1,6 +1,8 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, initializeAuth, browserLocalPersistence } from "firebase/auth";
 import { getDatabase } from "firebase/database";
+import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = { 
   apiKey: "AIzaSyAbsa0uvBYhkEYoLxuHwD4TQi5GDdAzQpg", 
@@ -26,3 +28,16 @@ try {
 
 export const auth = authInstance;
 export const db = getDatabase(app);
+export const storage = getStorage(app);
+let functionsInstance: any;
+export const getFirebaseFunctions = () => {
+  if (!functionsInstance) {
+    try {
+      functionsInstance = getFunctions(app);
+    } catch (error) {
+      console.error("Firebase Functions initialization failed:", error);
+      throw error;
+    }
+  }
+  return functionsInstance;
+};

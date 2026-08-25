@@ -1,41 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { ref, update } from 'firebase/database';
-import { db } from '../lib/firebase';
+import { db, getFirebaseFunctions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import Swal from 'sweetalert2';
-import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2 } from 'lucide-react';
+import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send } from 'lucide-react';
 
 export default function Settings({ data }: any) {
+  if (!data) return <div className="p-8 text-center text-slate-500 font-bold">Loading Settings...</div>;
   const s = data.settings || {};
   
-  const [activeTab, setActiveTab] = useState<'financial' | 'levels'>('financial');
+  const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications'>('financial');
 
   const [rates, setRates] = useState({
     newRate: s.newRate ?? s.new_rate ?? 10.5,
-    oldRate: s.oldRate ?? s.old_rate ?? 13.0,
-    userBonus: s.signup_bonus_user ?? 5,
-    refBonus: s.signup_bonus_referrer ?? 5,
-    commRate: s.commissionPercent ?? s.commission_percent ?? 10,
-    minWd: s.minWithdraw ?? s.min_withdraw ?? 50,
-    fee: s.withdraw_fee_percent ?? 6,
+    oldRate: s.oldRate ?? s.old_rate ?? 7.5,
+    userBonus: s.signup_bonus_user ?? s.userBonus ?? s.user_bonus ?? 2,
+    refBonus: s.signup_bonus_referrer ?? s.refBonus ?? s.ref_bonus ?? 1,
+    commRate: s.commissionPercent ?? s.commission_percent ?? s.commRate ?? s.comm_rate ?? 5,
+    minWd: s.minWithdraw ?? s.min_withdraw ?? s.minWd ?? s.min_wd ?? 50,
+    fee: s.withdraw_fee_percent ?? s.fee ?? 2,
   });
 
   const [levels, setLevels] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (s.signup_bonus_user !== undefined || s.newRate !== undefined || s.new_rate !== undefined) {
+    if (s) {
       setRates({
         newRate: s.newRate ?? s.new_rate ?? 10.5,
-        oldRate: s.oldRate ?? s.old_rate ?? 13.0,
-        userBonus: s.signup_bonus_user ?? 5,
-        refBonus: s.signup_bonus_referrer ?? 5,
-        commRate: s.commissionPercent ?? s.commission_percent ?? 10,
-        minWd: s.minWithdraw ?? s.min_withdraw ?? 50,
-        fee: s.withdraw_fee_percent ?? 6,
+        oldRate: s.oldRate ?? s.old_rate ?? 7.5,
+        userBonus: s.signup_bonus_user ?? s.userBonus ?? s.user_bonus ?? 2,
+        refBonus: s.signup_bonus_referrer ?? s.refBonus ?? s.ref_bonus ?? 1,
+        commRate: s.commissionPercent ?? s.commission_percent ?? s.commRate ?? s.comm_rate ?? 5,
+        minWd: s.minWithdraw ?? s.min_withdraw ?? s.minWd ?? s.min_wd ?? 50,
+        fee: s.withdraw_fee_percent ?? s.fee ?? 2,
       });
-    }
-    if (s.levels) {
-      setLevels(s.levels);
+      if (s.levels) {
+        setLevels(s.levels);
+      }
     }
   }, [s]);
 
@@ -86,6 +88,25 @@ export default function Settings({ data }: any) {
     }));
   };
 
+  const sendTestReminder = async () => {
+    try {
+      setSaving(true);
+      const sendPush = httpsCallable(getFirebaseFunctions(), 'sendManualAdminPush');
+      await sendPush({
+        title: "🛡️ এডমিন রিমাইন্ডার (Test)",
+        body: "এটি একটি টেস্ট রিমাইন্ডার। এখন থেকে প্রতি ৩ ঘন্টা পর পর এরকম সুন্দর সুন্দর নোটিফিকেশন আসবে আপনার ফোনে।",
+        type: "general",
+        target: "submissions"
+      });
+      Swal.fire('Success', 'Test push notification sent successfully to your device!', 'success');
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire('Error', 'Failed to send test push: ' + e.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50/50">
       {/* Header Banner */}
@@ -133,224 +154,217 @@ export default function Settings({ data }: any) {
         >
           <Layers size={16} /> User Level Tiers ({Object.keys(levels).length})
         </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeTab === 'notifications'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Bell size={16} /> Notifications
+        </button>
       </div>
 
       {/* TAB 1: FINANCIAL & BONUS RATES */}
       {activeTab === 'financial' && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* New Gmail Rate */}
-            <div className="bg-white p-6 rounded-2xl border border-indigo-200 shadow-sm space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">New Gmail Rate</span>
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <Coins size={20} />
-                </div>
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+          
+          {/* Group 2: Affiliate & Bonuses */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                <Award size={16} />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-400">৳</span>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    value={rates.newRate} 
-                    onChange={e => setRates({...rates, newRate: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500 font-mono" 
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Default reward per verified fresh/new Gmail submission (settings/newRate).</p>
+                <h3 className="font-black text-slate-800">Affiliate & Bonuses</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signup and referral rewards</p>
               </div>
             </div>
-
-            {/* Old Gmail Rate */}
-            <div className="bg-white p-6 rounded-2xl border border-purple-200 shadow-sm space-y-3 relative overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-purple-600 uppercase tracking-wider">Old Gmail Rate</span>
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                  <Coins size={20} />
-                </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* User Bonus */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">User Signup Bonus</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.userBonus} onChange={e => setRates({...rates, userBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                 </div>
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-400">৳</span>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    value={rates.oldRate} 
-                    onChange={e => setRates({...rates, oldRate: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-purple-500 font-mono" 
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Reward per verified aged/old Gmail submission (settings/oldRate).</p>
+              {/* Referrer Bonus */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Referrer Bonus</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.refBonus} onChange={e => setRates({...rates, refBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                 </div>
               </div>
-            </div>
-
-            {/* Signup Bonus (User) */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">User Signup Bonus</span>
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <Award size={20} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-400">৳</span>
-                  <input 
-                    type="number" 
-                    value={rates.userBonus} 
-                    onChange={e => setRates({...rates, userBonus: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Bonus amount credited instantly when a new user registers.</p>
-              </div>
-            </div>
-
-            {/* Signup Bonus (Referrer) */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Referrer Signup Bonus</span>
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                  <Award size={20} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-400">৳</span>
-                  <input 
-                    type="number" 
-                    value={rates.refBonus} 
-                    onChange={e => setRates({...rates, refBonus: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Bonus credited to the referrer when someone uses their link.</p>
-              </div>
-            </div>
-
-            {/* Commission Percent */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Referral Commission</span>
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <Percent size={20} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    value={rates.commRate} 
-                    onChange={e => setRates({...rates, commRate: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
-                  />
-                  <span className="text-xl font-bold text-slate-400">%</span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Commission percentage earned from referred users' earnings.</p>
-              </div>
-            </div>
-
-            {/* Minimum Withdraw */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Minimum Withdrawal</span>
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <DollarSign size={20} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl font-bold text-slate-400">৳</span>
-                  <input 
-                    type="number" 
-                    value={rates.minWd} 
-                    onChange={e => setRates({...rates, minWd: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
-                  />
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Minimum wallet balance required to request cashout.</p>
-              </div>
-            </div>
-
-            {/* Withdraw Fee */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Withdrawal Fee</span>
-                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                  <Percent size={20} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="number" 
-                    value={rates.fee} 
-                    onChange={e => setRates({...rates, fee: Number(e.target.value)})}
-                    className="w-full text-2xl font-black text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none focus:border-indigo-500" 
-                  />
-                  <span className="text-xl font-bold text-slate-400">%</span>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-2">Deduction percentage applied on withdrawal requests.</p>
+              {/* Commission */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Referral Commission</label>
+                 <div className="relative flex items-center">
+                   <input type="number" value={rates.commRate} onChange={e => setRates({...rates, commRate: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-4 pr-8 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                   <div className="absolute right-4 text-slate-400 font-bold">%</div>
+                 </div>
               </div>
             </div>
           </div>
+
+          {/* Group 3: Withdrawals */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+                <DollarSign size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800">Withdrawal Rules</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cashout constraints and fees</p>
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Min Withdraw */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minimum Withdrawal</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.minWd} onChange={e => setRates({...rates, minWd: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all" />
+                 </div>
+              </div>
+              {/* Withdraw Fee */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Withdrawal Fee</label>
+                 <div className="relative flex items-center">
+                   <input type="number" value={rates.fee} onChange={e => setRates({...rates, fee: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-4 pr-8 py-3 outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all" />
+                   <div className="absolute right-4 text-slate-400 font-bold">%</div>
+                 </div>
+              </div>
+            </div>
+          </div>
+
         </div>
       )}
 
       {/* TAB 2: LEVEL CONFIGURATIONS */}
       {activeTab === 'levels' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="font-bold text-slate-800 text-sm">Progressive User Level Tiers</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Configure task rates and requirement thresholds for each user level.</p>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Layers size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800">Progressive User Tiers</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configure task rates based on completed submissions</p>
+              </div>
             </div>
             <button 
               onClick={addLevel} 
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-colors shrink-0"
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 active:scale-95 shrink-0"
             >
               <Plus size={16} /> Add New Level
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="p-6 space-y-4 bg-slate-50/50">
             {Object.keys(levels).length === 0 ? (
-              <div className="py-12 text-center text-slate-400">
-                <Layers size={36} className="mx-auto text-slate-300 mb-2" />
-                <div className="font-bold text-slate-600">No level tiers configured yet</div>
-                <div className="text-xs text-slate-400 mt-1">Click "Add New Level" to set up progressive task rates.</div>
+              <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+                <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Layers size={32} />
+                </div>
+                <div className="font-black text-slate-700 text-lg">No Tiers Configured</div>
+                <div className="text-sm text-slate-500 mt-1">Users will always receive the base task rates.</div>
+                <button onClick={addLevel} className="mt-6 px-6 py-2 bg-indigo-50 text-indigo-600 font-bold rounded-full hover:bg-indigo-100 transition-colors">Setup First Level</button>
               </div>
             ) : (
               Object.keys(levels).sort((a,b)=>Number(a)-Number(b)).map(k => {
                 const l = levels[k];
                 return (
-                  <div key={k} className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col md:flex-row gap-4 items-center relative hover:border-indigo-200 transition-all">
-                    <div className="absolute top-3 right-3 md:static md:order-last">
-                      <button onClick={()=>deleteLevel(k)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"><X size={18}/></button>
+                  <div key={k} className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col xl:flex-row gap-6 xl:items-center relative hover:border-indigo-300 hover:shadow-md transition-all group">
+                    <div className="absolute top-4 right-4 xl:static xl:order-last">
+                      <button onClick={()=>deleteLevel(k)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all"><X size={18}/></button>
                     </div>
-                    <div className="w-full md:w-28 font-black text-indigo-600 text-base flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center text-xs">LVL</span>
-                      {k}
+                    
+                    <div className="flex items-center gap-4 xl:w-48">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex flex-col items-center justify-center border border-indigo-100 text-indigo-600 shrink-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Level</span>
+                        <span className="text-xl font-black">{k}</span>
+                      </div>
+                      <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
                     </div>
-                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">New Task Rate (৳)</label>
-                        <input type="number" value={l.new_rate} onChange={e=>updateLevel(k, 'new_rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5 w-full">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">New Task Rate</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold">৳</div>
+                          <input type="number" value={l.new_rate} onChange={e=>updateLevel(k, 'new_rate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-7 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Old Task Rate (৳)</label>
-                        <input type="number" value={l.old_rate} onChange={e=>updateLevel(k, 'old_rate', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Old Task Rate</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold">৳</div>
+                          <input type="number" value={l.old_rate} onChange={e=>updateLevel(k, 'old_rate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-7 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Requirement (Completed Tasks)</label>
-                        <input type="number" value={l.req} onChange={e=>updateLevel(k, 'req', e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 text-xs font-bold text-slate-800" />
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Requirement (Tasks)</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold"><CheckCircle2 size={14}/></div>
+                          <input type="number" value={l.req} onChange={e=>updateLevel(k, 'req', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: NOTIFICATIONS CONFIG */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Bell size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-800">Admin Reminders (অটোমেটিক রিমাইন্ডার)</h3>
+                <p className="text-sm text-slate-500">এখন থেকে প্রতি ৩ ঘন্টা পর পর পেন্ডিং জিমেইল রিভিউ করার জন্য আপনার ফোনে অটোমেটিক পুশ নোটিফিকেশন আসবে।</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 size={14} />
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-bold">Active Schedule:</span> Every 3 hours (00:00, 03:00, 06:00, etc.)
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 size={14} />
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-bold">Content:</span> Randomly selected beautiful Bengali messages.
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button 
+                onClick={sendTestReminder}
+                disabled={saving}
+                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
+              >
+                {saving ? 'Sending...' : <><Send size={18} /> Send Test Push Reminder Now</>}
+              </button>
+              <p className="text-[11px] text-slate-400 mt-3 text-center sm:text-left">Click to verify if your device is successfully receiving push notifications from the server.</p>
+            </div>
           </div>
         </div>
       )}

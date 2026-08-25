@@ -368,3 +368,94 @@ exports.onUserNotification = functions.database
     }
   });
 
+/**
+ * 8. Scheduled Task: Remind Admin every 3 hours
+ */
+const adminReminderMessages = [
+  "ডেয়ার এডমিন, জিমেইল ইনবক্স চেক করুন। অনেক পেন্ডিং সাবমিশন জমা হয়েছে!",
+  "প্রিয় এডমিন, মেম্বাররা জিমেইল জমা দিয়েছে। দ্রুত রিভিউ করে পেমেন্ট নিশ্চিত করুন।",
+  "অ্যাকশন টাইম! এডমিন জিমেইল চেক করুন এবং ইউজারের কাজগুলো অ্যাপ্রুভ করুন।",
+  "এডমিন সাহেব, আপনার ড্যাশবোর্ড চেক করুন। নতুন কাজের আপডেট চলে এসেছে।"
+];
+
+exports.scheduledAdminReminder = functions.pubsub
+  .schedule('0 */3 * * *')
+  .timeZone('Asia/Dhaka')
+  .onRun(async (context) => {
+    const randomIndex = Math.floor(Math.random() * adminReminderMessages.length);
+    const bodyText = adminReminderMessages[randomIndex];
+
+    await dispatchAdminNotification({
+      title: "🛡️ এডমিন রিমাইন্ডার",
+      body: bodyText,
+      type: "general",
+      target: "submissions",
+      id: "scheduled",
+      preferenceKey: "pref_gmail"
+    });
+    
+    console.log(`Scheduled admin reminder sent: ${bodyText}`);
+    return null;
+  });
+
+/**
+ * 9. Scheduled Task: User Reminder every 3 hours
+ */
+const userReminderMessages = [
+  "জিমেইল এক্সচেঞ্জ অফার! এখনই নতুন জিমেইল সাবমিট করুন এবং ব্যালেন্স বাড়িয়ে নিন।",
+  "প্রিয় মেম্বার, আপনার কাছে কি নতুন জিমেইল আছে? দ্রুত সাবমিট করে টাকা ইনকাম করুন!",
+  "শিফট চলছে! আপনার পেন্ডিং জিমেইলগুলো এখনই জমা দিন।",
+  "আজকের রেট আপডেট করা হয়েছে। জিমেইল সাবমিট করে দ্রুত পেমেন্ট বুঝে নিন।"
+];
+
+exports.scheduledUserReminder = functions.pubsub
+  .schedule('0 */3 * * *')
+  .timeZone('Asia/Dhaka')
+  .onRun(async (context) => {
+    const message = userReminderMessages[Math.floor(Math.random() * userReminderMessages.length)];
+
+    try {
+      const usersSnap = await db.ref("users").once("value");
+      if (!usersSnap.exists()) return null;
+
+      const users = usersSnap.val();
+      const tokens = [];
+      Object.keys(users).forEach(uid => {
+        const u = users[uid];
+        if (u.fcmToken) tokens.push(u.fcmToken);
+        if (u.token) tokens.push(u.token);
+      });
+
+      if (tokens.length === 0) return null;
+      const uniqueTokens = [...new Set(tokens)];
+
+      const payload = {
+        notification: {
+          title: "📥 নতুন জিমেইল জমা দিন",
+          body: message,
+        },
+        data: {
+          click_action: "FLUTTER_NOTIFICATION_CLICK",
+          target: "submission_form"
+        },
+        android: {
+          priority: "high"
+        }
+      };
+
+      const batchSize = 500;
+      for (let i = 0; i < uniqueTokens.length; i += batchSize) {
+        const tokenBatch = uniqueTokens.slice(i, i + batchSize);
+        await admin.messaging().sendEachForMulticast({
+          ...payload,
+          tokens: tokenBatch
+        });
+      }
+      
+      console.log(`Scheduled user reminder sent to ${uniqueTokens.length} devices.`);
+    } catch (error) {
+      console.error("Error sending scheduled user push:", error);
+    }
+    return null;
+  });
+
