@@ -55,10 +55,14 @@ export default function App() {
       
       // Show browser notification if permitted
       if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(title, {
-          body: body,
-          icon: 'https://files.catbox.moe/cqiv5k.png'
-        });
+        try {
+          new Notification(title, {
+            body: body,
+            icon: 'https://files.catbox.moe/cqiv5k.png'
+          });
+        } catch (e) {
+          console.error(e);
+        }
       }
 
       // Also trigger SweetAlert popup if admin is active on app
@@ -67,10 +71,23 @@ export default function App() {
         text: body,
         icon: 'info',
         confirmButtonText: 'ঠিক আছে',
-        timer: 10000,
+        timer: 15000,
         timerProgressBar: true
       });
+      localStorage.setItem('last_gmail_reminder_time', Date.now().toString());
     };
+
+    // Attach to window so Settings test button can call it reliably without cloud function errors
+    (window as any).triggerGmailReminder = triggerGmailReminder;
+
+    // Check if 3 hours have already elapsed since last reminder
+    const lastReminder = Number(localStorage.getItem('last_gmail_reminder_time') || '0');
+    if (Date.now() - lastReminder > THREE_HOURS_MS) {
+      // If never ran or 3h passed, we can schedule an initial check or save timestamp
+      if (!lastReminder) {
+        localStorage.setItem('last_gmail_reminder_time', Date.now().toString());
+      }
+    }
 
     // Initial check timer setup
     const reminderInterval = setInterval(triggerGmailReminder, THREE_HOURS_MS);

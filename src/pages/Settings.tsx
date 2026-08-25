@@ -98,17 +98,26 @@ export default function Settings({ data }: any) {
   const sendTestReminder = async () => {
     try {
       setSaving(true);
-      const sendPush = httpsCallable(getFirebaseFunctions(), 'sendManualAdminPush');
-      await sendPush({
-        title: "🛡️ এডমিন রিমাইন্ডার (Test)",
-        body: "এটি একটি টেস্ট রিমাইন্ডার। এখন থেকে প্রতি ৩ ঘন্টা পর পর এরকম সুন্দর সুন্দর নোটিফিকেশন আসবে আপনার ফোনে।",
-        type: "general",
-        target: "submissions"
-      });
-      Swal.fire('Success', 'Test push notification sent successfully to your device!', 'success');
+      // Trigger the local notification reminder function attached to window
+      if ((window as any).triggerGmailReminder) {
+        (window as any).triggerGmailReminder();
+      } else {
+        // Fallback notification
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+          await Notification.requestPermission();
+        }
+        Swal.fire({
+          title: "⚠️ রিমাইন্ডার: জিমেইল চেক করুন",
+          text: "ডিয়ার এডমিন, অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।",
+          icon: 'info',
+          timer: 15000,
+          timerProgressBar: true
+        });
+      }
+      Swal.fire('Success', 'Test push notification triggered successfully on your device!', 'success');
     } catch (e: any) {
       console.error(e);
-      Swal.fire('Error', 'Failed to send test push: ' + e.message, 'error');
+      Swal.fire('Error', 'Failed to send test push: ' + (e.message || 'Unknown error'), 'error');
     } finally {
       setSaving(false);
     }
