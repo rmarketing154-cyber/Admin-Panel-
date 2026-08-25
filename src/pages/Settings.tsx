@@ -3,20 +3,13 @@ import { ref, update } from 'firebase/database';
 import { db, getFirebaseFunctions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import Swal from 'sweetalert2';
-import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send, ShieldCheck, Camera } from 'lucide-react';
-import FaceLockModal from '../components/FaceLockModal';
+import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send } from 'lucide-react';
 
 export default function Settings({ data }: any) {
   if (!data) return <div className="p-8 text-center text-slate-500 font-bold">Loading Settings...</div>;
   const s = data.settings || {};
   
-  const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications' | 'security'>('financial');
-  const [faceModalOpen, setFaceModalOpen] = useState(false);
-  const [hasFaceId, setHasFaceId] = useState(false);
-
-  useEffect(() => {
-    setHasFaceId(Boolean(localStorage.getItem('admin_face_id')));
-  }, []);
+  const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications'>('financial');
 
   const [rates, setRates] = useState({
     newRate: s.newRate ?? s.new_rate ?? 10.5,
@@ -179,16 +172,6 @@ export default function Settings({ data }: any) {
           }`}
         >
           <Bell size={16} /> Notifications
-        </button>
-        <button
-          onClick={() => setActiveTab('security')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-            activeTab === 'security'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <ShieldCheck size={16} /> Face Lock & Security
         </button>
       </div>
 
@@ -395,76 +378,6 @@ export default function Settings({ data }: any) {
         </div>
       )}
 
-      {/* TAB 4: FACE LOCK & SECURITY */}
-      {activeTab === 'security' && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-          <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                  <ShieldCheck size={24} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-black text-slate-800">Biometric Face Lock (ফেস লক সিকিউরিটি)</h3>
-                  <p className="text-sm text-slate-500">Protect your admin panel with cutting-edge camera facial recognition.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${hasFaceId ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                  {hasFaceId ? 'Face ID Configured' : 'Not Configured'}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-bold">Secure Biometrics:</span> Your face signature is securely encrypted and stored locally on your trusted device.
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-bold">Instant Login:</span> Skip typing passwords by scanning your face during login.
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-4 pt-2">
-              <button
-                onClick={() => setFaceModalOpen(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-600/20 active:scale-95"
-              >
-                <Camera size={18} /> {hasFaceId ? 'Re-Register / Update Face ID' : 'Register Admin Face ID Now'}
-              </button>
-              {hasFaceId && (
-                <button
-                  onClick={() => {
-                    localStorage.removeItem('admin_face_id');
-                    setHasFaceId(false);
-                    Swal.fire('Removed', 'Face ID configuration cleared.', 'info');
-                  }}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3.5 px-6 rounded-xl transition-all"
-                >
-                  Clear Face ID Data
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <FaceLockModal
-        isOpen={faceModalOpen}
-        onClose={() => setFaceModalOpen(false)}
-        onSuccess={() => setHasFaceId(true)}
-        mode="register"
-      />
     </div>
   );
 }

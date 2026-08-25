@@ -82,14 +82,22 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
           >
             <Menu size={18} className="stroke-[2.5]" />
           </button>
-          <div className="flex items-center gap-2.5 font-black text-sm sm:text-base tracking-wider text-white">
-            <img 
-              src="https://files.catbox.moe/cqiv5k.png" 
-              alt="Logo" 
-              className="w-8 h-8 rounded-xl object-cover shadow-lg shadow-indigo-500/30 border border-white/20 icon-3d transition-transform hover:scale-105 shrink-0" 
-              referrerPolicy="no-referrer" 
-            />
-            <span className="bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">MAIL FACTORY ADMIN</span>
+          <div className="flex items-center gap-2.5 font-black text-sm sm:text-base tracking-wider text-white group cursor-pointer" onClick={() => setCurrentTab('home')}>
+            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-emerald-500 p-0.5 shadow-2xl shadow-indigo-600/50 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center">
+              <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center overflow-hidden border border-white/30 relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/40 via-transparent to-emerald-500/20 pointer-events-none"></div>
+                <div className="absolute -top-2 -right-2 w-4 h-4 bg-emerald-400 rounded-full blur-[2px] opacity-70 animate-pulse"></div>
+                <svg className="w-5 h-5 text-indigo-300 drop-shadow-[0_0_8px_rgba(129,140,248,0.8)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2l9 4v6c0 5.55-3.84 10.74-9 12-5.16-1.26-9-6.45-9-12V6l9-4z" />
+                </svg>
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <span className="bg-gradient-to-r from-white via-indigo-200 to-emerald-300 bg-clip-text text-transparent font-black tracking-wider text-xs sm:text-sm drop-shadow">MAIL FACTORY</span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 -mt-0.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> 3D PRO ADMIN
+              </span>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
