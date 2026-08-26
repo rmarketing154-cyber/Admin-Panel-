@@ -232,10 +232,10 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
 
         {/* Right Action Icons (Gmail Reminder, Audio, Alerts, Logout) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* 3-Hour Gmail Check Reminder Trigger */}
+          {/* Configurable Gmail Check Reminder Trigger */}
           <button
             onClick={() => showAttractiveGmailReminder(true)}
-            title={`৩ ঘণ্টা জিমেইল চেকিং রিমাইন্ডার (${formatRemainingTime(getTimeUntilNextReminder())}) - ক্লিক করে এখনই চেক করুন`}
+            title={`জিমেইল চেকিং রিমাইন্ডার (${formatRemainingTime(getTimeUntilNextReminder())}) - ক্লিক করে এখনই নোটিফিকেশন টেস্ট ও জিমেইল চেক করুন`}
             className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/30"
           >
             <Mail size={15} className="text-rose-400 animate-pulse" />

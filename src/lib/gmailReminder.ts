@@ -5,7 +5,31 @@ import { ref, push } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 
 const REMINDER_KEY = 'last_gmail_reminder_time';
-const THREE_HOURS_MS = 3 * 60 * 60 * 1000; // 3 hours in milliseconds
+const REMINDER_INTERVAL_KEY = 'gmail_reminder_interval_min';
+const REMINDER_ENABLED_KEY = 'gmail_reminder_enabled';
+const DEFAULT_INTERVAL_MIN = 180; // 3 hours = 180 min
+
+export function isReminderEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  const val = localStorage.getItem(REMINDER_ENABLED_KEY);
+  return val === null ? true : val === 'true';
+}
+
+export function setReminderEnabled(enabled: boolean): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(REMINDER_ENABLED_KEY, String(enabled));
+}
+
+export function getReminderIntervalMinutes(): number {
+  if (typeof window === 'undefined') return DEFAULT_INTERVAL_MIN;
+  const saved = localStorage.getItem(REMINDER_INTERVAL_KEY);
+  return saved ? Number(saved) : DEFAULT_INTERVAL_MIN;
+}
+
+export function setReminderIntervalMinutes(minutes: number): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(REMINDER_INTERVAL_KEY, String(minutes));
+}
 
 export function getLastReminderTime(): number {
   if (typeof window === 'undefined') return 0;
@@ -21,7 +45,8 @@ export function setLastReminderTime(time: number = Date.now()): void {
 export function getTimeUntilNextReminder(): number {
   const last = getLastReminderTime();
   if (!last) return 0;
-  const next = last + THREE_HOURS_MS;
+  const intervalMs = getReminderIntervalMinutes() * 60 * 1000;
+  const next = last + intervalMs;
   const remaining = next - Date.now();
   return remaining > 0 ? remaining : 0;
 }
@@ -92,11 +117,20 @@ export async function sendMobilePushToAdmins(title: string, body: string) {
 }
 
 /**
- * Triggers the 3-Hour Gmail Check Mobile Push Notification
+ * Triggers the Configurable Gmail Check Mobile Push Notification
  */
 export function showAttractiveGmailReminder(isManualTest = false) {
+  if (!isManualTest && !isReminderEnabled()) {
+    return;
+  }
+
+  const intervalMin = getReminderIntervalMinutes();
+  const intervalText = intervalMin < 60 ? `${intervalMin} মিনিট` : `${intervalMin / 60} ঘণ্টা`;
+
   const title = '📧 ডিয়ার এডমিন! জিমেইল চেকিং করুন';
-  const body = '৩ ঘণ্টা অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন সাবমিশন দেখতে অ্যাপটি চেক করুন।';
+  const body = isManualTest
+    ? `আপনার নির্ধারিত প্রতি ${intervalText} পর পর রিমাইন্ডার পুশ সক্রিয় আছে!`
+    : `${intervalText} অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন সাবমিশন দেখতে অ্যাপটি চেক করুন।`;
 
   // 1. Dispatch real Android system push notification (RealtimeAlertService + FCM)
   sendMobilePushToAdmins(title, body);
@@ -148,7 +182,7 @@ export function showAttractiveGmailReminder(isManualTest = false) {
 }
 
 /**
- * Initializes the background checker for 3-hour Gmail checking
+ * Initializes the background checker for Gmail checking
  */
 export function initGmailReminderService(): () => void {
   if (typeof window === 'undefined') return () => {};
@@ -158,29 +192,25 @@ export function initGmailReminderService(): () => void {
     Notification.requestPermission().catch(() => {});
   }
 
-  // Check on boot
-  const lastTime = getLastReminderTime();
-  if (!lastTime) {
-    // First time boot - initialize to now so it doesn't instantly annoy, or trigger after 3 hours
-    setLastReminderTime(Date.now());
-  } else {
-    const elapsed = Date.now() - lastTime;
-    if (elapsed >= THREE_HOURS_MS) {
-      // Delay slightly so login/app mount completes smoothly
-      setTimeout(() => {
+  const checkAndTrigger = () => {
+    if (!isReminderEnabled()) return;
+    const lastTime = getLastReminderTime();
+    const intervalMs = getReminderIntervalMinutes() * 60 * 1000;
+    if (!lastTime) {
+      setLastReminderTime(Date.now());
+    } else {
+      const elapsed = Date.now() - lastTime;
+      if (elapsed >= intervalMs) {
         showAttractiveGmailReminder(false);
-      }, 2000);
+      }
     }
-  }
+  };
 
-  // Periodic interval checking every 60 seconds
-  const intervalId = setInterval(() => {
-    const last = getLastReminderTime();
-    const elapsed = Date.now() - last;
-    if (elapsed >= THREE_HOURS_MS) {
-      showAttractiveGmailReminder(false);
-    }
-  }, 60000);
+  // Check on boot after smooth mount
+  setTimeout(checkAndTrigger, 3000);
+
+  // Periodic interval checking every 30 seconds
+  const intervalId = setInterval(checkAndTrigger, 30000);
 
   // Attach global trigger for debug/testing
   (window as any).triggerGmailReminder = () => showAttractiveGmailReminder(true);

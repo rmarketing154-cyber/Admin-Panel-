@@ -67,6 +67,20 @@ class AdminTokenManager(private val context: Context) {
     fun isNewUserEnabled(): Boolean = prefs.getBoolean("pref_new_user", true)
     fun isReportEnabled(): Boolean = prefs.getBoolean("pref_report", true)
 
+    fun isPeriodicReminderEnabled(): Boolean = prefs.getBoolean("pref_periodic_reminder_enabled", true)
+    fun setPeriodicReminderEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("pref_periodic_reminder_enabled", enabled).apply()
+        val deviceId = getDeviceId()
+        database.child("admin_tokens").child(deviceId).child("periodicReminderEnabled").setValue(enabled)
+    }
+
+    fun getPeriodicReminderIntervalMinutes(): Long = prefs.getLong("pref_periodic_reminder_interval_min", 180L) // Default 3 hours = 180 minutes
+    fun setPeriodicReminderIntervalMinutes(minutes: Long) {
+        prefs.edit().putLong("pref_periodic_reminder_interval_min", minutes).apply()
+        val deviceId = getDeviceId()
+        database.child("admin_tokens").child(deviceId).child("periodicReminderIntervalMin").setValue(minutes)
+    }
+
     fun getAdminUrl(): String {
         return prefs.getString("pref_admin_url", "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app/") ?: "https://ais-pre-ke5nti73kgbryjyxjqkkae-659427486150.asia-east1.run.app/"
     }

@@ -4,7 +4,7 @@ import { db, getFirebaseFunctions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import Swal from 'sweetalert2';
 import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send, Mail, Clock, RefreshCw, ExternalLink } from 'lucide-react';
-import { showAttractiveGmailReminder, getTimeUntilNextReminder, formatRemainingTime, setLastReminderTime, openThisAppDirectly } from '../lib/gmailReminder';
+import { showAttractiveGmailReminder, getTimeUntilNextReminder, formatRemainingTime, setLastReminderTime, openThisAppDirectly, getReminderIntervalMinutes, setReminderIntervalMinutes, isReminderEnabled, setReminderEnabled } from '../lib/gmailReminder';
 
 export default function Settings({ data }: any) {
   if (!data) return <div className="p-8 text-center text-slate-500 font-bold">Loading Settings...</div>;
@@ -12,6 +12,8 @@ export default function Settings({ data }: any) {
   
   const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications'>('financial');
   const [nextReminderStr, setNextReminderStr] = useState('');
+  const [reminderActive, setReminderActive] = useState(isReminderEnabled());
+  const [selectedInterval, setSelectedInterval] = useState(getReminderIntervalMinutes());
 
   useEffect(() => {
     const updateCountdown = () => {
@@ -20,7 +22,7 @@ export default function Settings({ data }: any) {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedInterval, reminderActive]);
 
   const [rates, setRates] = useState({
     newRate: s.newRate ?? s.new_rate ?? 10.5,
@@ -345,19 +347,106 @@ export default function Settings({ data }: any) {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-black text-slate-800">৩-ঘণ্টা জিমেইল চেকিং রিমাইন্ডার</h3>
-                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">সক্রিয়</span>
+                    <h3 className="text-lg font-black text-slate-800">জিমেইল চেকিং রিমাইন্ডার ও পুশ নোটিফিকেশন</h3>
+                    {reminderActive ? (
+                      <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">সক্রিয়</span>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">বন্ধ</span>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5">লোকাল স্টোরেজ ও নোটিফিকেশন সিস্টেমের মাধ্যমে প্রতি ৩ ঘণ্টা পর পর আকর্ষণীয় বাংলায় অ্যাডমিনকে এলার্ট দেওয়া হয়।</p>
+                  <p className="text-xs text-slate-500 mt-0.5">অফলাইনে অ্যান্ড্রয়েড অ্যালার্ম এবং অনলাইনে FCM পুশ নোটিফিকেশনের মাধ্যমে নির্দিষ্ট সময় পর পর অ্যাডমিনকে এলার্ট দেওয়া হয়।</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-md shrink-0">
-                <Clock size={16} className="text-rose-400 animate-pulse" />
-                <div className="text-left">
-                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">পরবর্তী রিমাইন্ডার</div>
-                  <div className="font-mono font-bold text-xs text-rose-300">{nextReminderStr}</div>
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reminderActive}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setReminderActive(enabled);
+                      setReminderEnabled(enabled);
+                      Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: enabled ? 'success' : 'info',
+                        title: enabled ? 'রিমাইন্ডার সক্রিয় করা হয়েছে' : 'রিমাইন্ডার বন্ধ করা হয়েছে',
+                        showConfirmButton: false,
+                        timer: 2000
+                      });
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                </label>
+
+                <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-md shrink-0">
+                  <Clock size={16} className="text-rose-400 animate-pulse" />
+                  <div className="text-left">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">পরবর্তী রিমাইন্ডার</div>
+                    <div className="font-mono font-bold text-xs text-rose-300">
+                      {reminderActive ? nextReminderStr : 'বন্ধ আছে'}
+                    </div>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Time Interval Selector */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Clock size={15} className="text-indigo-600" /> সময় ব্যবধান নির্বাচন করুন (Select Interval)
+                </div>
+                <div className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  বর্তমান ব্যবধান: {selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`} পর পর
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 pt-1">
+                {[
+                  { label: '৩০ মিনিট', min: 30 },
+                  { label: '১ ঘণ্টা', min: 60 },
+                  { label: '২ ঘণ্টা', min: 120 },
+                  { label: '৩ ঘণ্টা', min: 180, isDefault: true },
+                  { label: '৪ ঘণ্টা', min: 240 },
+                  { label: '৬ ঘণ্টা', min: 360 },
+                  { label: '১২ ঘণ্টা', min: 720 },
+                  { label: '২৪ ঘণ্টা', min: 1440 },
+                ].map((item) => {
+                  const isSelected = selectedInterval === item.min;
+                  return (
+                    <button
+                      key={item.min}
+                      type="button"
+                      onClick={() => {
+                        setSelectedInterval(item.min);
+                        setReminderIntervalMinutes(item.min);
+                        setLastReminderTime(Date.now());
+                        setNextReminderStr(formatRemainingTime(item.min * 60 * 1000));
+                        Swal.fire({
+                          toast: true,
+                          position: 'top-end',
+                          icon: 'success',
+                          title: `রিমাইন্ডার ব্যবধান প্রতি ${item.label} পর পর সেট করা হয়েছে`,
+                          showConfirmButton: false,
+                          timer: 2000
+                        });
+                      }}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border text-center flex flex-col items-center justify-center gap-0.5 ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/30 scale-102'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.isDefault && (
+                        <span className={`text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>Default</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -368,7 +457,7 @@ export default function Settings({ data }: any) {
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> লাইভ নোটিফিকেশন প্রিভিউ
                 </span>
                 <span className="text-[10px] font-bold text-rose-600/80 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">
-                  অটো অডিও + পপআপ + ওয়েব নোটিফিকেশন
+                  অটো অডিও + স্ট্যাটাস বার পুশ + অ্যান্ড্রয়েড অ্যালার্ম
                 </span>
               </div>
               <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex items-start gap-3">
@@ -378,7 +467,7 @@ export default function Settings({ data }: any) {
                 <div className="space-y-1">
                   <h4 className="text-sm font-black text-slate-900">📬 ডিয়ার এডমিন! জিমেইল চেকিং করুন</h4>
                   <p className="text-xs text-slate-600">
-                    ৩ ঘণ্টা অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন রিকোয়েস্ট দেখতে অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।
+                    {selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`} অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন রিকোয়েস্ট দেখতে অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।
                   </p>
                 </div>
               </div>
@@ -387,10 +476,10 @@ export default function Settings({ data }: any) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
-                  <CheckCircle2 size={16} className="text-emerald-600" /> লোকাল স্টোরেজ ট্র্যাকিং
+                  <CheckCircle2 size={16} className="text-emerald-600" /> ১০০% অফলাইন ও অনলাইন সাপোর্ট
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  ব্রাউজারের <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded text-[11px] font-mono">last_gmail_reminder_time</code> কি দ্বারা সময় গণনা করা হয়। আপনি পেজ রিফ্রেশ বা ব্রাউজার বন্ধ করলেও ৩ ঘণ্টার শিডিউল সঠিক থাকে।
+                  অ্যান্ড্রয়েড অ্যাপে <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded text-[11px] font-mono">AlarmManager</code> ব্যবহারের ফলে ফোনে কোনো ইন্টারনেট কানেকশন না থাকলেও নির্ধারিত সময় পর পর স্বয়ংক্রিয় পুশ নোটিফিকেশন আসবে।
                 </p>
               </div>
 
@@ -410,7 +499,7 @@ export default function Settings({ data }: any) {
                 onClick={() => showAttractiveGmailReminder(true)}
                 className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xs sm:text-sm py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-600/30"
               >
-                <Send size={16} /> নোটিফিকেশন টেস্ট করুন (Test Now)
+                <Send size={16} /> এখনই পুশ নোটিফিকেশন টেস্ট করুন (Test Now)
               </button>
 
               <button 
@@ -421,14 +510,14 @@ export default function Settings({ data }: any) {
                     toast: true,
                     position: 'top-end',
                     icon: 'success',
-                    title: '৩ ঘণ্টার টাইমার রিস্টার্ট করা হয়েছে',
+                    title: `টাইমার রিস্টার্ট করা হয়েছে (${selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`})`,
                     showConfirmButton: false,
                     timer: 2000
                   });
                 }}
                 className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-300"
               >
-                <RefreshCw size={14} /> টাইমার রিসেট (Reset 3h)
+                <RefreshCw size={14} /> টাইমার রিসেট (Reset Timer)
               </button>
 
               <button 
