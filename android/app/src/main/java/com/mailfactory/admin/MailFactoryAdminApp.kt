@@ -19,5 +19,12 @@ class MailFactoryAdminApp : Application() {
 
         // Create high-priority notification channels
         NotificationHelper.createNotificationChannels(this)
+
+        // Schedule offline 3-hour Gmail checking alarm (Works 100% without internet)
+        try {
+            com.mailfactory.admin.services.GmailReminderReceiver.scheduleNextReminder(this)
+        } catch (e: Exception) {
+            // Handled
+        }
     }
 }

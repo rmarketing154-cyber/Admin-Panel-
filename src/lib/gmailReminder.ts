@@ -1,6 +1,7 @@
 import Swal from 'sweetalert2';
 import { soundAlerts } from './sound';
-import { getFirebaseFunctions } from './firebase';
+import { db, getFirebaseFunctions } from './firebase';
+import { ref, push } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 
 const REMINDER_KEY = 'last_gmail_reminder_time';
@@ -54,10 +55,27 @@ export function openThisAppDirectly(): void {
 }
 
 /**
- * Sends a real FCM mobile push notification to all registered Admin devices
+ * Sends a real FCM & Realtime mobile push notification to all registered Android devices
  */
 export async function sendMobilePushToAdmins(title: string, body: string) {
   try {
+    // 1. Write to Firebase Realtime Database 'admin_notifications'
+    // This directly triggers Android's background RealtimeAlertService to post a native status bar notification!
+    await push(ref(db, 'admin_notifications'), {
+      title: title,
+      message: body,
+      body: body,
+      type: 'gmail',
+      target: 'submissions',
+      timestamp: Date.now(),
+      sendPush: true
+    });
+  } catch (err) {
+    console.warn('RTDB notification dispatch note:', err);
+  }
+
+  try {
+    // 2. Call Cloud Function FCM Dispatcher to reach FCM Tokens
     const fns = getFirebaseFunctions();
     const sendPushFn = httpsCallable(fns, 'sendManualAdminPush');
     await sendPushFn({
@@ -69,18 +87,18 @@ export async function sendMobilePushToAdmins(title: string, body: string) {
     });
     console.log('Mobile FCM push notification dispatched to admin phones.');
   } catch (err) {
-    console.warn('FCM push dispatch notice (normal if Cloud Function is offline or offline auth):', err);
+    console.warn('FCM callable note:', err);
   }
 }
 
 /**
- * Triggers the eye-catching 3-Hour Gmail Check Notification
+ * Triggers the 3-Hour Gmail Check Mobile Push Notification
  */
 export function showAttractiveGmailReminder(isManualTest = false) {
   const title = '📧 ডিয়ার এডমিন! জিমেইল চেকিং করুন';
-  const body = '৩ ঘণ্টা অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও রিকোয়েস্ট দেখতে অ্যাপটি চেক করুন।';
+  const body = '৩ ঘণ্টা অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন সাবমিশন দেখতে অ্যাপটি চেক করুন।';
 
-  // 1. Dispatch Mobile FCM Push Notification to Android phones
+  // 1. Dispatch real Android system push notification (RealtimeAlertService + FCM)
   sendMobilePushToAdmins(title, body);
 
   // 2. Play synthesized alert chime
@@ -90,7 +108,7 @@ export function showAttractiveGmailReminder(isManualTest = false) {
     console.warn('Sound error:', e);
   }
 
-  // 3. Request / Send native Web Notification if allowed
+  // 3. Request / Send native Web Notification in notification shade if permitted
   if (typeof window !== 'undefined' && 'Notification' in window) {
     if (Notification.permission === 'granted') {
       try {
@@ -113,82 +131,20 @@ export function showAttractiveGmailReminder(isManualTest = false) {
     }
   }
 
-  // 3. Update localStorage timestamp
+  // 4. Update localStorage timestamp
   setLastReminderTime(Date.now());
 
-  // 4. Show highly attractive, custom-styled SweetAlert popup
-  Swal.fire({
-    title: `<div class="flex items-center justify-center gap-2 text-rose-600 font-extrabold text-xl sm:text-2xl tracking-tight">
-      <span class="animate-bounce inline-block">📬</span> ডিয়ার এডমিন! জিমেইল চেকিং করুন
-    </div>`,
-    html: `
-      <div class="text-left space-y-3 py-2 text-slate-700">
-        <div class="p-3.5 bg-gradient-to-r from-rose-50 via-amber-50 to-orange-50 rounded-xl border border-rose-100/80 shadow-inner">
-          <div class="flex items-start gap-2.5">
-            <div class="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center font-bold text-base shrink-0 shadow-md shadow-rose-500/20">
-              ✉️
-            </div>
-            <div>
-              <p class="text-xs sm:text-sm font-bold text-slate-900 leading-snug">
-                ৩ ঘণ্টা অতিবাহিত হয়েছে! নতুন গুরুত্বপূর্ণ ইমেইল চেক করার সময় হয়েছে।
-              </p>
-              <p class="text-[11px] sm:text-xs text-slate-600 mt-1">
-                আপনার সিস্টেমের সিকিউরিটি নোটিশ, অ্যাকাউন্ট আপডেট বা নতুন রিকোয়েস্ট মিস করবেন না।
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-          <div class="bg-slate-100/80 p-2.5 rounded-lg border border-slate-200">
-            <span class="font-bold text-slate-800 block text-xs mb-0.5">⏰ চেকিং শিডিউল</span>
-            প্রতি ৩ ঘণ্টা পর পর স্বয়ংক্রিয় রিমাইন্ডার
-          </div>
-          <div class="bg-slate-100/80 p-2.5 rounded-lg border border-slate-200">
-            <span class="font-bold text-slate-800 block text-xs mb-0.5">💾 লোকাল স্টোরেজ</span>
-            নিরাপদে ব্যাকগ্রাউন্ডে সক্রিয়
-          </div>
-        </div>
-      </div>
-    `,
-    showCancelButton: true,
-    showDenyButton: true,
-    confirmButtonText: '📥 New Submissions দেখুন',
-    denyButtonText: '⏰ ১ ঘণ্টা পর মনে করান',
-    cancelButtonText: '✅ পরে দেখব',
-    confirmButtonColor: '#e11d48',
-    denyButtonColor: '#4f46e5',
-    cancelButtonColor: '#64748b',
-    customClass: {
-      popup: 'rounded-3xl border border-rose-200 shadow-2xl p-6 bg-white',
-      confirmButton: 'font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md',
-      denyButton: 'font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md',
-      cancelButton: 'font-bold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md'
-    },
-    backdrop: `
-      rgba(15, 23, 42, 0.6)
-      left top
-      no-repeat
-    `,
-    timer: isManualTest ? undefined : 30000,
-    timerProgressBar: true
-  }).then((result) => {
-    if (result.isConfirmed) {
-      openThisAppDirectly();
-    } else if (result.isDenied) {
-      // Snooze for 1 hour by advancing the last reminder timestamp to (now - 2 hours)
-      const oneHourSnooze = Date.now() - (2 * 60 * 60 * 1000);
-      setLastReminderTime(oneHourSnooze);
-      Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'info',
-        title: '১ ঘণ্টা পর আবার মনে করিয়ে দেওয়া হবে',
-        showConfirmButton: false,
-        timer: 3000
-      });
-    }
-  });
+  // 5. If manual test, show brief non-intrusive confirmation toast
+  if (isManualTest) {
+    Swal.fire({
+      toast: true,
+      position: 'top-end',
+      icon: 'success',
+      title: 'মোবাইলের নোটিফিকেশন বারে পুশ পাঠানো হয়েছে!',
+      showConfirmButton: false,
+      timer: 3000
+    });
+  }
 }
 
 /**
