@@ -3,13 +3,24 @@ import { ref, update } from 'firebase/database';
 import { db, getFirebaseFunctions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import Swal from 'sweetalert2';
-import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send } from 'lucide-react';
+import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send, Mail, Clock, RefreshCw, ExternalLink } from 'lucide-react';
+import { showAttractiveGmailReminder, getTimeUntilNextReminder, formatRemainingTime, setLastReminderTime, openThisAppDirectly } from '../lib/gmailReminder';
 
 export default function Settings({ data }: any) {
   if (!data) return <div className="p-8 text-center text-slate-500 font-bold">Loading Settings...</div>;
   const s = data.settings || {};
   
   const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications'>('financial');
+  const [nextReminderStr, setNextReminderStr] = useState('');
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      setNextReminderStr(formatRemainingTime(getTimeUntilNextReminder()));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [rates, setRates] = useState({
     newRate: s.newRate ?? s.new_rate ?? 10.5,
@@ -91,23 +102,15 @@ export default function Settings({ data }: any) {
   const sendTestReminder = async () => {
     try {
       setSaving(true);
-      // Trigger the local notification reminder function attached to window
-      if ((window as any).triggerGmailReminder) {
-        (window as any).triggerGmailReminder();
-      } else {
-        // Fallback notification
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-          await Notification.requestPermission();
-        }
-        Swal.fire({
-          title: "⚠️ রিমাইন্ডার: জিমেইল চেক করুন",
-          text: "ডিয়ার এডমিন, অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।",
-          icon: 'info',
-          timer: 15000,
-          timerProgressBar: true
-        });
-      }
-      Swal.fire('Success', 'Test push notification triggered successfully on your device!', 'success');
+      showAttractiveGmailReminder(true);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'মোবাইলে পুশ নোটিফিকেশন ও অ্যালার্ট পাঠানো হয়েছে!',
+        showConfirmButton: false,
+        timer: 3000
+      });
     } catch (e: any) {
       console.error(e);
       Swal.fire('Error', 'Failed to send test push: ' + (e.message || 'Unknown error'), 'error');
@@ -334,45 +337,106 @@ export default function Settings({ data }: any) {
       {/* TAB 3: NOTIFICATIONS CONFIG */}
       {activeTab === 'notifications' && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                <Bell size={24} />
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-inner">
+                  <Mail size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-800">৩-ঘণ্টা জিমেইল চেকিং রিমাইন্ডার</h3>
+                    <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">সক্রিয়</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">লোকাল স্টোরেজ ও নোটিফিকেশন সিস্টেমের মাধ্যমে প্রতি ৩ ঘণ্টা পর পর আকর্ষণীয় বাংলায় অ্যাডমিনকে এলার্ট দেওয়া হয়।</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-lg font-black text-slate-800">Admin Reminders (অটোমেটিক রিমাইন্ডার)</h3>
-                <p className="text-sm text-slate-500">এখন থেকে প্রতি ৩ ঘন্টা পর পর পেন্ডিং জিমেইল রিভিউ করার জন্য আপনার ফোনে অটোমেটিক পুশ নোটিফিকেশন আসবে।</p>
-              </div>
-            </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-bold">Active Schedule:</span> Every 3 hours (00:00, 03:00, 06:00, etc.)
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 mt-0.5">
-                  <CheckCircle2 size={14} />
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-bold">Content:</span> Randomly selected beautiful Bengali messages.
+              <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-md shrink-0">
+                <Clock size={16} className="text-rose-400 animate-pulse" />
+                <div className="text-left">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">পরবর্তী রিমাইন্ডার</div>
+                  <div className="font-mono font-bold text-xs text-rose-300">{nextReminderStr}</div>
                 </div>
               </div>
             </div>
 
-            <div className="pt-2">
+            {/* Notification Preview Card */}
+            <div className="p-4 bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 rounded-2xl border border-rose-200/70 shadow-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> লাইভ নোটিফিকেশন প্রিভিউ
+                </span>
+                <span className="text-[10px] font-bold text-rose-600/80 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">
+                  অটো অডিও + পপআপ + ওয়েব নোটিফিকেশন
+                </span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-md shadow-rose-500/30">
+                  ✉️
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-slate-900">📬 ডিয়ার এডমিন! জিমেইল চেকিং করুন</h4>
+                  <p className="text-xs text-slate-600">
+                    ৩ ঘণ্টা অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন রিকোয়েস্ট দেখতে অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+                  <CheckCircle2 size={16} className="text-emerald-600" /> লোকাল স্টোরেজ ট্র্যাকিং
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  ব্রাউজারের <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded text-[11px] font-mono">last_gmail_reminder_time</code> কি দ্বারা সময় গণনা করা হয়। আপনি পেজ রিফ্রেশ বা ব্রাউজার বন্ধ করলেও ৩ ঘণ্টার শিডিউল সঠিক থাকে।
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+                  <CheckCircle2 size={16} className="text-indigo-600" /> অ্যাপের ভিতরে সরাসরি নেভিগেশন
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  নোটিফিকেশনে ক্লিক করলে সরাসরি অ্যাপের <span className="text-indigo-600 font-bold">New Submissions</span> অপশনে নিয়ে যাবে এবং পেন্ডিং ডাটা প্রদর্শন করবে।
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-wrap items-center gap-3">
               <button 
-                onClick={sendTestReminder}
-                disabled={saving}
-                className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 px-8 rounded-xl flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50"
+                onClick={() => showAttractiveGmailReminder(true)}
+                className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xs sm:text-sm py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-600/30"
               >
-                {saving ? 'Sending...' : <><Send size={18} /> Send Test Push Reminder Now</>}
+                <Send size={16} /> নোটিফিকেশন টেস্ট করুন (Test Now)
               </button>
-              <p className="text-[11px] text-slate-400 mt-3 text-center sm:text-left">Click to verify if your device is successfully receiving push notifications from the server.</p>
+
+              <button 
+                onClick={() => {
+                  setLastReminderTime(Date.now());
+                  setNextReminderStr(formatRemainingTime(getTimeUntilNextReminder()));
+                  Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: '৩ ঘণ্টার টাইমার রিস্টার্ট করা হয়েছে',
+                    showConfirmButton: false,
+                    timer: 2000
+                  });
+                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-300"
+              >
+                <RefreshCw size={14} /> টাইমার রিসেট (Reset 3h)
+              </button>
+
+              <button 
+                onClick={openThisAppDirectly}
+                className="bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 font-bold text-xs py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all border border-indigo-200"
+              >
+                <Mail size={14} /> New Submissions-এ যান
+              </button>
             </div>
           </div>
         </div>

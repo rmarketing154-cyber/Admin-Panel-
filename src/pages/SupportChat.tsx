@@ -23,17 +23,21 @@ export default function SupportChat({ data }: any) {
   };
 
   const markAsRead = async (uid: string) => {
-    const chat = data.chats.find((c: any) => c.uid === uid);
-    if (chat && chat.unread) {
-      const updates: any = {};
-      chat.msgs.forEach((m: any) => {
-        if (m.from === 'user' && !m.read) {
-          updates[`${uid}/${m.msgKey}/read`] = true;
+    try {
+      const chat = data.chats.find((c: any) => c.uid === uid);
+      if (chat && chat.unread) {
+        const updates: any = {};
+        chat.msgs.forEach((m: any) => {
+          if (m.from === 'user' && !m.read) {
+            updates[`${uid}/${m.msgKey}/read`] = true;
+          }
+        });
+        if (Object.keys(updates).length > 0) {
+          await update(ref(db, 'support_chats'), updates);
         }
-      });
-      if (Object.keys(updates).length > 0) {
-        await update(ref(db, 'support_chats'), updates);
       }
+    } catch (err) {
+      console.warn('markAsRead error:', err);
     }
   };
 
@@ -45,13 +49,17 @@ export default function SupportChat({ data }: any) {
 
   const sendReply = async () => {
     if (!replyText.trim() || !activeUid) return;
-    await push(ref(db, `support_chats/${activeUid}`), {
-      from: 'admin',
-      message: replyText.trim(),
-      timestamp: Date.now(),
-      read: true
-    });
-    setReplyText('');
+    try {
+      await push(ref(db, `support_chats/${activeUid}`), {
+        from: 'admin',
+        message: replyText.trim(),
+        timestamp: Date.now(),
+        read: true
+      });
+      setReplyText('');
+    } catch (err: any) {
+      console.warn('sendReply error:', err);
+    }
   };
 
   if (activeUid) {

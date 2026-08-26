@@ -11,6 +11,7 @@ export function useAdminData(user: any) {
     submissions: [],
     withdraws: [],
     settings: null,
+    shifts: {},
     topSellers: [],
     topReferrals: [],
     reviews: [],
@@ -98,6 +99,8 @@ export function useAdminData(user: any) {
         const users: any[] = [];
         snap.forEach(c => { users.push({ uid: c.key, ...c.val() }); });
         setData(prev => ({ ...prev, users }));
+      }, (error) => {
+        console.warn("users listener error:", error.message);
       }),
 
       onValue(ref(db, "submissions"), (snap) => {
@@ -119,6 +122,8 @@ export function useAdminData(user: any) {
         
         setData(prev => ({ ...prev, submissions }));
         isFirstSub = false;
+      }, (error) => {
+        console.warn("submissions listener error:", error.message);
       }),
 
       onValue(ref(db, "withdraw_requests"), (snap) => {
@@ -140,12 +145,23 @@ export function useAdminData(user: any) {
         
         setData(prev => ({ ...prev, withdraws }));
         isFirstWd = false;
+      }, (error) => {
+        console.warn("withdraw_requests listener error:", error.message);
       }),
 
       onValue(ref(db, "settings"), (snap) => {
         const sVal = snap.val();
         settingsRef.current = sVal;
         setData(prev => ({ ...prev, settings: sVal }));
+      }, (error) => {
+        console.warn("settings listener error:", error.message);
+      }),
+
+      onValue(ref(db, "shifts"), (snap) => {
+        const shiftsVal = snap.val() || {};
+        setData(prev => ({ ...prev, shifts: shiftsVal }));
+      }, (error) => {
+        console.warn("shifts listener error:", error.message);
       }),
 
       onValue(ref(db, "admin_notifications"), (snap) => {
@@ -163,6 +179,8 @@ export function useAdminData(user: any) {
           });
         }
         isFirstNotif = false;
+      }, (error) => {
+        console.warn("admin_notifications listener error:", error.message);
       }),
 
       onValue(ref(db, "top_sellers"), (snap) => {
@@ -172,6 +190,8 @@ export function useAdminData(user: any) {
           Object.values(tsData).forEach(v => topSellers.push(v));
         }
         setData(prev => ({ ...prev, topSellers }));
+      }, (error) => {
+        console.warn("top_sellers listener error:", error.message);
       }),
 
       onValue(ref(db, "top_referrals"), (snap) => {
@@ -181,12 +201,16 @@ export function useAdminData(user: any) {
           Object.values(trData).forEach(v => topReferrals.push(v));
         }
         setData(prev => ({ ...prev, topReferrals }));
+      }, (error) => {
+        console.warn("top_referrals listener error:", error.message);
       }),
 
       onValue(ref(db, "reviews"), (snap) => {
         const reviews: any[] = [];
         snap.forEach(c => { reviews.push({ key: c.key, ...c.val() }); });
         setData(prev => ({ ...prev, reviews }));
+      }, (error) => {
+        console.warn("reviews listener error:", error.message);
       }),
 
       onValue(ref(db, "support_chats"), (snap) => {
@@ -217,12 +241,17 @@ export function useAdminData(user: any) {
         });
         setData(prev => ({ ...prev, chats }));
         isFirstChat = false;
+      }, (error) => {
+        console.warn("support_chats listener error:", error.message);
       }),
 
       onValue(ref(db, "history"), (snap) => {
         const history: any[] = [];
         snap.forEach(c => { history.push({ key: c.key, ...c.val() }); });
         setData(prev => ({ ...prev, history: history.reverse() }));
+        setLoading(false);
+      }, (error) => {
+        console.warn("history listener error:", error.message);
         setLoading(false);
       })
     ];

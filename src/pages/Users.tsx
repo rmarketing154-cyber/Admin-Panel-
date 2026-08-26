@@ -401,14 +401,22 @@ export default function Users({ data, setCurrentTab }: any) {
     });
 
     if (confirm.isConfirmed) {
-      await update(ref(db, `users/${u.uid}`), { is_blocked: willBlock });
-      Swal.fire('Updated', willBlock ? 'User banned successfully' : 'User unbanned successfully', 'success');
+      try {
+        await update(ref(db, `users/${u.uid}`), { is_blocked: willBlock });
+        Swal.fire('Updated', willBlock ? 'User banned successfully' : 'User unbanned successfully', 'success');
+      } catch (err: any) {
+        Swal.fire('Error', err.message || 'Permission denied or error', 'error');
+      }
     }
   };
 
   const handleTopSeller = async (u: any) => {
-    await update(ref(db, `users/${u.uid}`), { isTopSeller: !u.isTopSeller });
-    Swal.fire('Updated', u.isTopSeller ? 'Removed from Top Sellers' : 'Marked as Top Seller', 'success');
+    try {
+      await update(ref(db, `users/${u.uid}`), { isTopSeller: !u.isTopSeller });
+      Swal.fire('Updated', u.isTopSeller ? 'Removed from Top Sellers' : 'Marked as Top Seller', 'success');
+    } catch (err: any) {
+      Swal.fire('Error', err.message || 'Permission denied or error', 'error');
+    }
   };
 
   // DETAILED USER PROFILE VIEW

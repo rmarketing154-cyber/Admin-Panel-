@@ -68,6 +68,8 @@ export default function PushNotification({ data }: any) {
       } catch (err) {
         console.error('Error parsing popup views:', err);
       }
+    }, (err) => {
+      console.warn('Popup views listener permission or network error:', err.message);
     });
 
     return () => {
@@ -162,8 +164,12 @@ export default function PushNotification({ data }: any) {
     });
 
     if (result.isConfirmed) {
-      await remove(ref(db, 'settings/global_popup_views'));
-      Swal.fire('Reset', 'Viewer statistics cleared.', 'success');
+      try {
+        await remove(ref(db, 'settings/global_popup_views'));
+        Swal.fire('Reset', 'Viewer statistics cleared.', 'success');
+      } catch (err: any) {
+        Swal.fire('Error', err.message || 'Failed to clear view stats', 'error');
+      }
     }
   };
 

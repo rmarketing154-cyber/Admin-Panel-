@@ -1,11 +1,52 @@
-import React, { useState } from 'react';
-import { Menu, X, Cpu, LogOut, LayoutDashboard, Inbox, CheckCircle2, Wallet, Users, Trophy, Star, Settings, MessageSquare, BellRing, Network, Coins, CreditCard, Clock, Megaphone, ScrollText, Volume2, VolumeX, Activity, Wrench } from 'lucide-react';
-import { ref, update } from 'firebase/database';
+import React, { useState, useEffect } from 'react';
+import { 
+  Menu, 
+  X, 
+  Cpu, 
+  LogOut, 
+  LayoutDashboard, 
+  Inbox, 
+  CheckCircle2, 
+  Wallet, 
+  Users, 
+  Trophy, 
+  Star, 
+  Settings, 
+  MessageSquare, 
+  BellRing, 
+  Network, 
+  Coins, 
+  CreditCard, 
+  Clock, 
+  Megaphone, 
+  ScrollText, 
+  Volume2, 
+  VolumeX, 
+  Activity, 
+  Wrench,
+  Timer,
+  ShieldAlert,
+  Play,
+  Square,
+  Mail
+} from 'lucide-react';
+import { ref, update, set } from 'firebase/database';
 import { db } from '../lib/firebase';
 import { soundAlerts } from '../lib/sound';
+import { computeDurationCountdown, formatDurationLabel, ShiftTimerData } from '../lib/shiftCountdown';
+import { getTimeUntilNextReminder, formatRemainingTime, showAttractiveGmailReminder } from '../lib/gmailReminder';
 
 export default function AdminLayout({ children, currentTab, setCurrentTab, onLogout, userEmail, data }: any) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setTicker] = useState(0);
+
+  // Live ticking interval (every second) for header live countdown clocks
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTicker(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const unreadChats = data.chats?.filter((c: any) => c.unread).length || 0;
   const pendingSubmissions = data.submissions?.filter((s: any) => s.status === 'pending').length || 0;
@@ -31,6 +72,34 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
     }
   };
 
+  // Read Shift 1 (Report Time / রিপোর্ট দেওয়া হবে)
+  const s1Data = data?.settings?.review_shifts?.shift_1 || data?.shifts?.shift_1 || data?.shifts?.shift1;
+  const s1DaysRaw = Number(s1Data?.days || s1Data?.duration_days || 0);
+  const s1HoursRaw = s1Data?.hours !== undefined ? Number(s1Data.hours) : (s1Data?.duration_hours !== undefined ? Number(s1Data.duration_hours) : 3);
+  const s1Hours = s1DaysRaw * 24 + s1HoursRaw;
+  const s1Days = 0;
+  const s1Minutes = Number(s1Data?.minutes || s1Data?.duration_minutes || 0);
+  const s1StartTime = Number(s1Data?.startTime || s1Data?.timer_started_at || 0);
+  const s1Active = s1Data?.active !== undefined 
+    ? Boolean(s1Data.active) 
+    : (data?.settings?.report_time_enabled !== undefined ? Boolean(data.settings.report_time_enabled) : true);
+
+  // Read Shift 2 (Receive Time / রিসিভ করা হবে)
+  const s2Data = data?.settings?.review_shifts?.shift_2 || data?.shifts?.shift_2 || data?.shifts?.shift2;
+  const s2DaysRaw = Number(s2Data?.days || s2Data?.duration_days || 0);
+  const s2HoursRaw = s2Data?.hours !== undefined ? Number(s2Data.hours) : (s2Data?.duration_hours !== undefined ? Number(s2Data.duration_hours) : 5);
+  const s2Hours = s2DaysRaw * 24 + s2HoursRaw;
+  const s2Days = 0;
+  const s2Minutes = Number(s2Data?.minutes || s2Data?.duration_minutes || 0);
+  const s2StartTime = Number(s2Data?.startTime || s2Data?.timer_started_at || 0);
+  const s2Active = s2Data?.active !== undefined 
+    ? Boolean(s2Data.active) 
+    : (data?.settings?.receive_time_enabled !== undefined ? Boolean(data.settings.receive_time_enabled) : true);
+
+  // Compute countdowns for shift tabs
+  const reportCountdown = computeDurationCountdown(s1Days, s1Hours, s1Minutes, s1StartTime, s1Active);
+  const receiveCountdown = computeDurationCountdown(s2Days, s2Hours, s2Minutes, s2StartTime, s2Active);
+
   const categories = [
     {
       title: 'Work & Operations',
@@ -52,12 +121,18 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
       ]
     },
     {
-      title: 'App Rates & Settings',
+      title: 'App Rates & Shifts',
       items: [
+        { 
+          id: 'shifts', 
+          label: 'রিপোর্ট ও রিসিভ টাইম', 
+          icon: Clock, 
+          icon3d: 'icon-3d-purple',
+          subLabel: s1Active || s2Active ? 'Active Timers' : 'Stopped'
+        },
         { id: 'settings', label: 'Financial & Rates', icon: Coins, icon3d: 'icon-3d-emerald' },
         { id: 'maintenance', label: 'Maintenance & Controls', icon: Wrench, icon3d: 'icon-3d-slate' },
         { id: 'gateways', label: 'Payment Gateways', icon: CreditCard, icon3d: 'icon-3d-indigo' },
-        { id: 'shifts', label: 'Review Shifts', icon: Clock, icon3d: 'icon-3d-purple' },
       ]
     },
     {
@@ -73,7 +148,7 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
   return (
     <div className="h-[100dvh] bg-slate-50 text-slate-900 flex flex-col overflow-hidden font-sans">
       {/* Navbar */}
-      <header className="bg-slate-900 text-white h-14 lg:h-16 flex items-center justify-between px-4 sm:px-6 shrink-0 z-50 border-b border-slate-800">
+      <header className="bg-slate-900 text-white min-h-[3.75rem] lg:min-h-[4.25rem] flex flex-wrap items-center justify-between px-3 sm:px-6 shrink-0 z-50 border-b border-slate-800 gap-2 py-2">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setSidebarOpen(true)} 
@@ -83,7 +158,7 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
             <Menu size={18} className="stroke-[2.5]" />
           </button>
           <div className="flex items-center gap-2.5 font-black text-sm sm:text-base tracking-wider text-white group cursor-pointer" onClick={() => setCurrentTab('home')}>
-            <div className="relative w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-emerald-500 p-0.5 shadow-2xl shadow-indigo-600/50 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center">
+            <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-violet-600 to-emerald-500 p-0.5 shadow-2xl shadow-indigo-600/50 group-hover:scale-110 transition-transform duration-300 flex items-center justify-center">
               <div className="w-full h-full bg-slate-950 rounded-[14px] flex items-center justify-center overflow-hidden border border-white/30 relative">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/40 via-transparent to-emerald-500/20 pointer-events-none"></div>
                 <div className="absolute -top-2 -right-2 w-4 h-4 bg-emerald-400 rounded-full blur-[2px] opacity-70 animate-pulse"></div>
@@ -100,19 +175,85 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* ================= Live Shift Timer Tab Badges in Topbar ================= */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+          
+          {/* Shift 1: রিপোর্ট টাইম (Report Time) Tab Badge */}
+          <button
+            onClick={() => setCurrentTab('shifts')}
+            title="রিপোর্ট টাইম (Report Time) কন্ট্রোল করতে ক্লিক করুন"
+            className={`group flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all duration-200 active:scale-95 shadow-xs ${
+              s1Active 
+                ? (reportCountdown.isFinished
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                    : 'bg-indigo-500/20 border-indigo-500/40 text-indigo-200 hover:bg-indigo-500/30 ring-1 ring-indigo-500/30')
+                : 'bg-slate-800/90 border-slate-700/70 text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${
+              s1Active ? (reportCountdown.isFinished ? 'bg-amber-400' : 'bg-indigo-400 animate-ping') : 'bg-red-500'
+            }`}></div>
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-300">
+              রিপোর্ট:
+            </span>
+            <span className={`font-mono font-black text-xs sm:text-sm ${
+              !s1Active ? 'text-red-400' : (reportCountdown.isFinished ? 'text-amber-300' : 'text-indigo-300')
+            }`}>
+              {reportCountdown.timeStr}
+            </span>
+          </button>
+
+          {/* Shift 2: রিসিভ টাইম (Receive Time) Tab Badge */}
+          <button
+            onClick={() => setCurrentTab('shifts')}
+            title="রিসিভ টাইম (Receive Time) কন্ট্রোল করতে ক্লিক করুন"
+            className={`group flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition-all duration-200 active:scale-95 shadow-xs ${
+              s2Active 
+                ? (receiveCountdown.isFinished
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 hover:bg-amber-500/25'
+                    : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/30 ring-1 ring-emerald-500/30')
+                : 'bg-slate-800/90 border-slate-700/70 text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            <div className={`w-2 h-2 rounded-full ${
+              s2Active ? (receiveCountdown.isFinished ? 'bg-amber-400' : 'bg-emerald-400 animate-ping') : 'bg-red-500'
+            }`}></div>
+            <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-slate-300">
+              রিসিভ:
+            </span>
+            <span className={`font-mono font-black text-xs sm:text-sm ${
+              !s2Active ? 'text-red-400' : (receiveCountdown.isFinished ? 'text-amber-300' : 'text-emerald-300')
+            }`}>
+              {receiveCountdown.timeStr}
+            </span>
+          </button>
+        </div>
+
+        {/* Right Action Icons (Gmail Reminder, Audio, Alerts, Logout) */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* 3-Hour Gmail Check Reminder Trigger */}
+          <button
+            onClick={() => showAttractiveGmailReminder(true)}
+            title={`৩ ঘণ্টা জিমেইল চেকিং রিমাইন্ডার (${formatRemainingTime(getTimeUntilNextReminder())}) - ক্লিক করে এখনই চেক করুন`}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25 border border-rose-500/30"
+          >
+            <Mail size={15} className="text-rose-400 animate-pulse" />
+            <span className="hidden md:inline text-[11px] font-black text-rose-200">জিমেইল চেক</span>
+          </button>
+
           {/* Quick Sound Alert Toggle */}
           <button
             onClick={toggleAudio}
             title={audioEnabled ? "Audio Alerts Enabled (Click to Mute)" : "Audio Alerts Muted (Click to Enable)"}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 ${
               audioEnabled 
                 ? 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/30' 
                 : 'bg-slate-800 text-slate-400 hover:bg-slate-700 border border-slate-700/60'
             }`}
           >
             {audioEnabled ? <Volume2 size={16} className="text-indigo-400 animate-pulse" /> : <VolumeX size={16} />}
-            <span className="hidden sm:inline text-[11px]">{audioEnabled ? 'Sound On' : 'Muted'}</span>
+            <span className="hidden xl:inline text-[11px]">{audioEnabled ? 'Sound On' : 'Muted'}</span>
           </button>
 
           {/* Real-time System Alerts Counter */}
@@ -143,27 +284,20 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
         {/* Sidebar Backdrop */}
         {sidebarOpen && (
           <div 
-            className="fixed inset-0 bg-slate-950/40 z-40 lg:hidden backdrop-blur-xs transition-opacity duration-300"
             onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-40 lg:hidden transition-opacity"
           />
         )}
 
-        {/* Sidebar */}
+        {/* Sidebar Navigation */}
         <aside className={`
-          fixed lg:static inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 transform transition-transform duration-300 ease-out
+          fixed lg:static inset-y-0 left-0 z-50
+          w-72 bg-white border-r border-slate-200 flex flex-col
+          transform transition-transform duration-300 ease-in-out shrink-0 shadow-xl lg:shadow-none
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          flex flex-col shadow-xl lg:shadow-none
         `}>
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between lg:hidden bg-slate-50/50">
-            <div className="flex items-center gap-2.5 font-bold text-slate-800">
-              <img 
-                src="https://files.catbox.moe/cqiv5k.png" 
-                alt="Logo" 
-                className="w-7 h-7 rounded-lg object-cover shadow-md shadow-indigo-500/20 border border-slate-200 icon-3d shrink-0" 
-                referrerPolicy="no-referrer" 
-              />
-              <span className="text-xs tracking-wider font-black uppercase text-slate-500">Master Menu</span>
-            </div>
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between lg:hidden">
+            <span className="font-extrabold text-sm text-slate-800">Admin Navigation</span>
             <button 
               onClick={() => setSidebarOpen(false)} 
               className="p-2 text-slate-400 hover:bg-slate-150 hover:text-slate-700 rounded-xl transition-all"
@@ -197,14 +331,16 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
                         : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-bold'
                       }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${item.icon3d || 'icon-3d-indigo'} ${currentTab === item.id ? 'ring-2 ring-white/40 shadow-lg' : 'opacity-90'}`}>
                         <item.icon size={15} className="stroke-[2.5] drop-shadow-sm text-white" />
                       </div>
-                      <span>{item.label}</span>
+                      <div className="truncate text-left">
+                        <div className="truncate">{item.label}</div>
+                      </div>
                     </div>
                     {(item.badge && item.badge > 0) ? (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center shrink-0
                         ${currentTab === item.id ? 'bg-white/20 text-white' : 'bg-red-50 text-red-600 border border-red-100'}
                       `}>{item.badge}</span>
                     ) : null}

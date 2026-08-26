@@ -18,8 +18,12 @@ export default function AuditLogs({ data }: any) {
     });
 
     if (isConfirmed) {
-      await remove(ref(db, "history"));
-      Swal.fire('Cleared', 'Audit history cleared successfully', 'success');
+      try {
+        await remove(ref(db, "history"));
+        Swal.fire('Cleared', 'Audit history cleared successfully', 'success');
+      } catch (err: any) {
+        Swal.fire('Error', err.message || 'Permission denied or network error', 'error');
+      }
     }
   };
 

@@ -21,6 +21,7 @@ import TodayActivity from './pages/TodayActivity';
 import Maintenance from './pages/Maintenance';
 import Swal from 'sweetalert2';
 import { Loader2 } from 'lucide-react';
+import { initGmailReminderService } from './lib/gmailReminder';
 
 const AUTHORIZED_ADMINS = [
   "gmrony135@gmail.com", 
@@ -36,61 +37,9 @@ export default function App() {
   
   const data = useAdminData(user);
 
-  // Listen for Deep Link navigation from Android FCM notification clicks & 3-hour Gmail check reminder
+  // Initialize 3-hour Gmail Reminder from localStorage & Deep Link handler
   useEffect(() => {
-    // Request Browser Notification permission if on Web
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then((permission) => {
-          console.log('Web Notification permission:', permission);
-        });
-      }
-    }
-
-    // Set up 3-hour interval push notification reminder for checking Gmail
-    const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
-    const triggerGmailReminder = () => {
-      const title = "⚠️ রিমাইন্ডার: জিমেইল চেক করুন";
-      const body = "ডিয়ার এডমিন, অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।";
-      
-      // Show browser notification if permitted
-      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(title, {
-            body: body,
-            icon: 'https://files.catbox.moe/cqiv5k.png'
-          });
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      // Also trigger SweetAlert popup if admin is active on app
-      Swal.fire({
-        title: title,
-        text: body,
-        icon: 'info',
-        confirmButtonText: 'ঠিক আছে',
-        timer: 15000,
-        timerProgressBar: true
-      });
-      localStorage.setItem('last_gmail_reminder_time', Date.now().toString());
-    };
-
-    // Attach to window so Settings test button can call it reliably without cloud function errors
-    (window as any).triggerGmailReminder = triggerGmailReminder;
-
-    // Check if 3 hours have already elapsed since last reminder
-    const lastReminder = Number(localStorage.getItem('last_gmail_reminder_time') || '0');
-    if (Date.now() - lastReminder > THREE_HOURS_MS) {
-      // If never ran or 3h passed, we can schedule an initial check or save timestamp
-      if (!lastReminder) {
-        localStorage.setItem('last_gmail_reminder_time', Date.now().toString());
-      }
-    }
-
-    // Initial check timer setup
-    const reminderInterval = setInterval(triggerGmailReminder, THREE_HOURS_MS);
+    const cleanupReminder = initGmailReminderService();
 
     (window as any).onNotificationDeepLink = (target: string, id?: string) => {
       console.log('FCM Deep Link received:', target, id);
@@ -100,7 +49,7 @@ export default function App() {
     };
 
     return () => {
-      clearInterval(reminderInterval);
+      cleanupReminder();
       delete (window as any).onNotificationDeepLink;
     };
   }, []);
