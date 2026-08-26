@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">Mail factory admin</string>
+    <string name="channel_gmail_name">Gmail Notifications</string>
+    <string name="channel_gmail_desc">Notifications for new incoming Gmail submissions</string>
+    <string name="channel_withdrawal_name">Withdrawal Requests</string>
+    <string name="channel_withdrawal_desc">Alerts for pending user cashout and withdrawal requests</string>
+    <string name="channel_user_name">New User Registrations</string>
+    <string name="channel_user_desc">Alerts when new users register on the platform</string>
+    <string name="channel_report_name">Support &amp; Reports</string>
+    <string name="channel_report_desc">User dispute and report submissions</string>
+    <string name="channel_general_name">General Admin Alerts</string>
+    <string name="channel_general_desc">System updates and general announcements</string>
+</resources>

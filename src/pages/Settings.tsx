@@ -1,0 +1,555 @@
+import React, { useState, useEffect } from 'react';
+import { ref, update } from 'firebase/database';
+import { db, getFirebaseFunctions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import Swal from 'sweetalert2';
+import { Coins, Save, Plus, X, Layers, Percent, DollarSign, Award, CheckCircle2, Bell, Send, Mail, Clock, RefreshCw, ExternalLink } from 'lucide-react';
+import { showAttractiveGmailReminder, getTimeUntilNextReminder, formatRemainingTime, setLastReminderTime, openThisAppDirectly, getReminderIntervalMinutes, setReminderIntervalMinutes, isReminderEnabled, setReminderEnabled } from '../lib/gmailReminder';
+
+export default function Settings({ data }: any) {
+  if (!data) return <div className="p-8 text-center text-slate-500 font-bold">Loading Settings...</div>;
+  const s = data.settings || {};
+  
+  const [activeTab, setActiveTab] = useState<'financial' | 'levels' | 'notifications'>('financial');
+  const [nextReminderStr, setNextReminderStr] = useState('');
+  const [reminderActive, setReminderActive] = useState(isReminderEnabled());
+  const [selectedInterval, setSelectedInterval] = useState(getReminderIntervalMinutes());
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      setNextReminderStr(formatRemainingTime(getTimeUntilNextReminder()));
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [selectedInterval, reminderActive]);
+
+  const [rates, setRates] = useState({
+    newRate: s.newRate ?? s.new_rate ?? 10.5,
+    oldRate: s.oldRate ?? s.old_rate ?? 7.5,
+    userBonus: s.signup_bonus_user ?? s.userBonus ?? s.user_bonus ?? 2,
+    refBonus: s.signup_bonus_referrer ?? s.refBonus ?? s.ref_bonus ?? 1,
+    dailyBonus: s.dailyBonusAmount ?? s.daily_bonus_amount ?? s.dailyBonus ?? s.daily_bonus ?? s.loginBonus ?? s.login_bonus ?? s.checkInBonus ?? s.check_in_bonus ?? 1.5,
+    commRate: s.commissionPercent ?? s.commission_percent ?? s.commRate ?? s.comm_rate ?? 5,
+    minWd: s.minWithdraw ?? s.min_withdraw ?? s.minWd ?? s.min_wd ?? 50,
+    fee: s.withdraw_fee_percent ?? s.fee ?? 2,
+  });
+
+  const [levels, setLevels] = useState<Record<string, any>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (s) {
+      setRates({
+        newRate: s.newRate ?? s.new_rate ?? 10.5,
+        oldRate: s.oldRate ?? s.old_rate ?? 7.5,
+        userBonus: s.signup_bonus_user ?? s.userBonus ?? s.user_bonus ?? 2,
+        refBonus: s.signup_bonus_referrer ?? s.refBonus ?? s.ref_bonus ?? 1,
+        dailyBonus: s.dailyBonusAmount ?? s.daily_bonus_amount ?? s.dailyBonus ?? s.daily_bonus ?? s.loginBonus ?? s.login_bonus ?? s.checkInBonus ?? s.check_in_bonus ?? 1.5,
+        commRate: s.commissionPercent ?? s.commission_percent ?? s.commRate ?? s.comm_rate ?? 5,
+        minWd: s.minWithdraw ?? s.min_withdraw ?? s.minWd ?? s.min_wd ?? 50,
+        fee: s.withdraw_fee_percent ?? s.fee ?? 2,
+      });
+      if (s.levels) {
+        setLevels(s.levels);
+      }
+    }
+  }, [s]);
+
+  const saveSettings = async () => {
+    setSaving(true);
+    try {
+      await update(ref(db, "settings"), {
+        newRate: Number(rates.newRate),
+        new_rate: Number(rates.newRate),
+        oldRate: Number(rates.oldRate),
+        old_rate: Number(rates.oldRate),
+        commissionPercent: Number(rates.commRate),
+        commission_percent: Number(rates.commRate),
+        minWithdraw: Number(rates.minWd),
+        min_withdraw: Number(rates.minWd),
+        signup_bonus_user: Number(rates.userBonus),
+        signup_bonus_referrer: Number(rates.refBonus),
+        dailyBonusAmount: Number(rates.dailyBonus),
+        daily_bonus_amount: Number(rates.dailyBonus),
+        dailyBonus: Number(rates.dailyBonus),
+        daily_bonus: Number(rates.dailyBonus),
+        loginBonus: Number(rates.dailyBonus),
+        login_bonus: Number(rates.dailyBonus),
+        checkInBonus: Number(rates.dailyBonus),
+        check_in_bonus: Number(rates.dailyBonus),
+        withdraw_fee_percent: Number(rates.fee),
+        levels: levels
+      });
+      Swal.fire('Saved!', 'Financial rates & settings updated successfully in real-time.', 'success');
+    } catch (e) {
+      console.error(e);
+      Swal.fire('Error', 'Failed to save settings.', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addLevel = () => {
+    const next = Object.keys(levels).length + 1;
+    setLevels(prev => ({
+      ...prev,
+      [next]: { new_rate: 10, old_rate: 8, req: next * 50 }
+    }));
+  };
+
+  const deleteLevel = (k: string) => {
+    const newL = { ...levels };
+    delete newL[k];
+    setLevels(newL);
+  };
+
+  const updateLevel = (k: string, field: string, val: string) => {
+    setLevels(prev => ({
+      ...prev,
+      [k]: { ...prev[k], [field]: Number(val) }
+    }));
+  };
+
+  const sendTestReminder = async () => {
+    try {
+      setSaving(true);
+      showAttractiveGmailReminder(true);
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'মোবাইলে পুশ নোটিফিকেশন ও অ্যালার্ট পাঠানো হয়েছে!',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } catch (e: any) {
+      console.error(e);
+      Swal.fire('Error', 'Failed to send test push: ' + (e.message || 'Unknown error'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-slate-50/50">
+      {/* Header Banner */}
+      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="absolute -right-10 -bottom-10 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
+              <Coins size={14} /> Platform Economics & Security
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">Financial Rates & Security</h1>
+            <p className="text-indigo-200 text-xs sm:text-sm max-w-xl">
+              Configure signup bonuses, referral commission percentages, withdrawal thresholds, and biometric Face Lock security.
+            </p>
+          </div>
+          <button
+            onClick={saveSettings}
+            disabled={saving}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all shrink-0 disabled:opacity-50"
+          >
+            <Save size={16} /> {saving ? 'Saving...' : 'Save All Changes'}
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs Navigation */}
+      <div className="flex items-center gap-3 border-b border-slate-200 pb-3 overflow-x-auto">
+        <button
+          onClick={() => setActiveTab('financial')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+            activeTab === 'financial'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Percent size={16} /> Financial & Bonus Rates
+        </button>
+        <button
+          onClick={() => setActiveTab('levels')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+            activeTab === 'levels'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Layers size={16} /> User Level Tiers ({Object.keys(levels).length})
+        </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+            activeTab === 'notifications'
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <Bell size={16} /> Notifications
+        </button>
+      </div>
+
+      {/* TAB 1: FINANCIAL & BONUS RATES */}
+      {activeTab === 'financial' && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+          
+          {/* Group 2: Affiliate & Bonuses */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                <Award size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800">Affiliate & Bonuses</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Signup and referral rewards</p>
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* User Bonus */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">User Signup Bonus</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.userBonus} onChange={e => setRates({...rates, userBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                 </div>
+              </div>
+              {/* Referrer Bonus */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Referrer Bonus</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.refBonus} onChange={e => setRates({...rates, refBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                 </div>
+              </div>
+              {/* Daily Login Bonus */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Daily Login Bonus</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" step="0.5" value={rates.dailyBonus} onChange={e => setRates({...rates, dailyBonus: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all" />
+                 </div>
+              </div>
+              {/* Commission */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Referral Commission</label>
+                 <div className="relative flex items-center">
+                   <input type="number" value={rates.commRate} onChange={e => setRates({...rates, commRate: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-4 pr-8 py-3 outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all" />
+                   <div className="absolute right-4 text-slate-400 font-bold">%</div>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Group 3: Withdrawals */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center">
+                <DollarSign size={16} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800">Withdrawal Rules</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cashout constraints and fees</p>
+              </div>
+            </div>
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Min Withdraw */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Minimum Withdrawal</label>
+                 <div className="relative flex items-center">
+                   <div className="absolute left-4 text-slate-400 font-bold">৳</div>
+                   <input type="number" value={rates.minWd} onChange={e => setRates({...rates, minWd: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-8 pr-4 py-3 outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all" />
+                 </div>
+              </div>
+              {/* Withdraw Fee */}
+              <div className="space-y-2">
+                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Withdrawal Fee</label>
+                 <div className="relative flex items-center">
+                   <input type="number" value={rates.fee} onChange={e => setRates({...rates, fee: Number(e.target.value)})} className="w-full bg-slate-50 border border-slate-200 text-slate-800 font-black text-lg rounded-xl pl-4 pr-8 py-3 outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all" />
+                   <div className="absolute right-4 text-slate-400 font-bold">%</div>
+                 </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* TAB 2: LEVEL CONFIGURATIONS */}
+      {activeTab === 'levels' && (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-bottom-4">
+          <div className="px-6 py-5 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Layers size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-800">Progressive User Tiers</h3>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Configure task rates based on completed submissions</p>
+              </div>
+            </div>
+            <button 
+              onClick={addLevel} 
+              className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-md shadow-indigo-600/20 active:scale-95 shrink-0"
+            >
+              <Plus size={16} /> Add New Level
+            </button>
+          </div>
+
+          <div className="p-6 space-y-4 bg-slate-50/50">
+            {Object.keys(levels).length === 0 ? (
+              <div className="py-16 text-center bg-white rounded-2xl border border-dashed border-slate-300">
+                <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Layers size={32} />
+                </div>
+                <div className="font-black text-slate-700 text-lg">No Tiers Configured</div>
+                <div className="text-sm text-slate-500 mt-1">Users will always receive the base task rates.</div>
+                <button onClick={addLevel} className="mt-6 px-6 py-2 bg-indigo-50 text-indigo-600 font-bold rounded-full hover:bg-indigo-100 transition-colors">Setup First Level</button>
+              </div>
+            ) : (
+              Object.keys(levels).sort((a,b)=>Number(a)-Number(b)).map(k => {
+                const l = levels[k];
+                return (
+                  <div key={k} className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col xl:flex-row gap-6 xl:items-center relative hover:border-indigo-300 hover:shadow-md transition-all group">
+                    <div className="absolute top-4 right-4 xl:static xl:order-last">
+                      <button onClick={()=>deleteLevel(k)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-100 rounded-xl transition-all"><X size={18}/></button>
+                    </div>
+                    
+                    <div className="flex items-center gap-4 xl:w-48">
+                      <div className="w-14 h-14 rounded-2xl bg-indigo-50 flex flex-col items-center justify-center border border-indigo-100 text-indigo-600 shrink-0">
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Level</span>
+                        <span className="text-xl font-black">{k}</span>
+                      </div>
+                      <div className="hidden xl:block w-px h-10 bg-slate-200"></div>
+                    </div>
+
+                    <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-5 w-full">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">New Task Rate</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold">৳</div>
+                          <input type="number" value={l.new_rate} onChange={e=>updateLevel(k, 'new_rate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-7 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Old Task Rate</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold">৳</div>
+                          <input type="number" value={l.old_rate} onChange={e=>updateLevel(k, 'old_rate', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-7 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider">Requirement (Tasks)</label>
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 font-bold"><CheckCircle2 size={14}/></div>
+                          <input type="number" value={l.req} onChange={e=>updateLevel(k, 'req', e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-700 font-bold rounded-xl pl-9 pr-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: NOTIFICATIONS CONFIG */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shadow-inner">
+                  <Mail size={24} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-slate-800">জিমেইল চেকিং রিমাইন্ডার ও পুশ নোটিফিকেশন</h3>
+                    {reminderActive ? (
+                      <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">সক্রিয়</span>
+                    ) : (
+                      <span className="bg-slate-100 text-slate-500 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">বন্ধ</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">অফলাইনে অ্যান্ড্রয়েড অ্যালার্ম এবং অনলাইনে FCM পুশ নোটিফিকেশনের মাধ্যমে নির্দিষ্ট সময় পর পর অ্যাডমিনকে এলার্ট দেওয়া হয়।</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reminderActive}
+                    onChange={(e) => {
+                      const enabled = e.target.checked;
+                      setReminderActive(enabled);
+                      setReminderEnabled(enabled);
+                      Swal.fire({
+                        toast: true,
+                        position: 'top-end',
+                        icon: enabled ? 'success' : 'info',
+                        title: enabled ? 'রিমাইন্ডার সক্রিয় করা হয়েছে' : 'রিমাইন্ডার বন্ধ করা হয়েছে',
+                        showConfirmButton: false,
+                        timer: 2000
+                      });
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                </label>
+
+                <div className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-2xl shadow-md shrink-0">
+                  <Clock size={16} className="text-rose-400 animate-pulse" />
+                  <div className="text-left">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">পরবর্তী রিমাইন্ডার</div>
+                    <div className="font-mono font-bold text-xs text-rose-300">
+                      {reminderActive ? nextReminderStr : 'বন্ধ আছে'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Time Interval Selector */}
+            <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                  <Clock size={15} className="text-indigo-600" /> সময় ব্যবধান নির্বাচন করুন (Select Interval)
+                </div>
+                <div className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                  বর্তমান ব্যবধান: {selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`} পর পর
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 pt-1">
+                {[
+                  { label: '৩০ মিনিট', min: 30 },
+                  { label: '১ ঘণ্টা', min: 60 },
+                  { label: '২ ঘণ্টা', min: 120 },
+                  { label: '৩ ঘণ্টা', min: 180, isDefault: true },
+                  { label: '৪ ঘণ্টা', min: 240 },
+                  { label: '৬ ঘণ্টা', min: 360 },
+                  { label: '১২ ঘণ্টা', min: 720 },
+                  { label: '২৪ ঘণ্টা', min: 1440 },
+                ].map((item) => {
+                  const isSelected = selectedInterval === item.min;
+                  return (
+                    <button
+                      key={item.min}
+                      type="button"
+                      onClick={() => {
+                        setSelectedInterval(item.min);
+                        setReminderIntervalMinutes(item.min);
+                        setLastReminderTime(Date.now());
+                        setNextReminderStr(formatRemainingTime(item.min * 60 * 1000));
+                        Swal.fire({
+                          toast: true,
+                          position: 'top-end',
+                          icon: 'success',
+                          title: `রিমাইন্ডার ব্যবধান প্রতি ${item.label} পর পর সেট করা হয়েছে`,
+                          showConfirmButton: false,
+                          timer: 2000
+                        });
+                      }}
+                      className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border text-center flex flex-col items-center justify-center gap-0.5 ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-600/30 scale-102'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.isDefault && (
+                        <span className={`text-[9px] ${isSelected ? 'text-indigo-200' : 'text-slate-400'}`}>Default</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Notification Preview Card */}
+            <div className="p-4 bg-gradient-to-r from-rose-50 via-pink-50 to-amber-50 rounded-2xl border border-rose-200/70 shadow-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-wider text-rose-700 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span> লাইভ নোটিফিকেশন প্রিভিউ
+                </span>
+                <span className="text-[10px] font-bold text-rose-600/80 bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">
+                  অটো অডিও + স্ট্যাটাস বার পুশ + অ্যান্ড্রয়েড অ্যালার্ম
+                </span>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-md shadow-rose-500/30">
+                  ✉️
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-black text-slate-900">📬 ডিয়ার এডমিন! জিমেইল চেকিং করুন</h4>
+                  <p className="text-xs text-slate-600">
+                    {selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`} অতিবাহিত হয়েছে! জরুরি মেইল, সিকিউরিটি আপডেট ও নতুন রিকোয়েস্ট দেখতে অনুগ্রহ করে আপনার জিমেইল ইনবক্স চেক করুন।
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+                  <CheckCircle2 size={16} className="text-emerald-600" /> ১০০% অফলাইন ও অনলাইন সাপোর্ট
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  অ্যান্ড্রয়েড অ্যাপে <code className="bg-slate-200 text-slate-800 px-1 py-0.5 rounded text-[11px] font-mono">AlarmManager</code> ব্যবহারের ফলে ফোনে কোনো ইন্টারনেট কানেকশন না থাকলেও নির্ধারিত সময় পর পর স্বয়ংক্রিয় পুশ নোটিফিকেশন আসবে।
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wider">
+                  <CheckCircle2 size={16} className="text-indigo-600" /> অ্যাপের ভিতরে সরাসরি নেভিগেশন
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  নোটিফিকেশনে ক্লিক করলে সরাসরি অ্যাপের <span className="text-indigo-600 font-bold">New Submissions</span> অপশনে নিয়ে যাবে এবং পেন্ডিং ডাটা প্রদর্শন করবে।
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="pt-2 flex flex-wrap items-center gap-3">
+              <button 
+                onClick={() => showAttractiveGmailReminder(true)}
+                className="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-black text-xs sm:text-sm py-3.5 px-6 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-600/30"
+              >
+                <Send size={16} /> এখনই পুশ নোটিফিকেশন টেস্ট করুন (Test Now)
+              </button>
+
+              <button 
+                onClick={() => {
+                  setLastReminderTime(Date.now());
+                  setNextReminderStr(formatRemainingTime(getTimeUntilNextReminder()));
+                  Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: `টাইমার রিস্টার্ট করা হয়েছে (${selectedInterval < 60 ? `${selectedInterval} মিনিট` : `${selectedInterval / 60} ঘণ্টা`})`,
+                    showConfirmButton: false,
+                    timer: 2000
+                  });
+                }}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all border border-slate-300"
+              >
+                <RefreshCw size={14} /> টাইমার রিসেট (Reset Timer)
+              </button>
+
+              <button 
+                onClick={openThisAppDirectly}
+                className="bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-700 font-bold text-xs py-3.5 px-5 rounded-2xl flex items-center justify-center gap-2 transition-all border border-indigo-200"
+              >
+                <Mail size={14} /> New Submissions-এ যান
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
