@@ -28,16 +28,38 @@ import {
   ShieldAlert,
   Play,
   Square,
-  Mail
+  Mail,
+  ShoppingCart,
+  Sparkles,
+  Layers,
+  ArrowRightLeft,
+  Store,
+  Package,
+  DollarSign,
+  Server,
+  Code2
 } from 'lucide-react';
 import { ref, update, set } from 'firebase/database';
 import { db } from '../lib/firebase';
 import { soundAlerts } from '../lib/sound';
 import { computeDurationCountdown, formatDurationLabel, ShiftTimerData } from '../lib/shiftCountdown';
 import { getTimeUntilNextReminder, formatRemainingTime, showAttractiveGmailReminder } from '../lib/gmailReminder';
+import ApiConnectionModal from './ApiConnectionModal';
 
-export default function AdminLayout({ children, currentTab, setCurrentTab, onLogout, userEmail, data }: any) {
+export default function AdminLayout({ 
+  children, 
+  currentTab, 
+  setCurrentTab, 
+  portalMode = 'selling',
+  setPortalMode,
+  buyerTab = 'storefront',
+  setBuyerTab,
+  onLogout, 
+  userEmail, 
+  data 
+}: any) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [apiModalOpen, setApiModalOpen] = useState(false);
   const [, setTicker] = useState(0);
 
   // Live ticking interval (every second) for header live countdown clocks
@@ -51,7 +73,71 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
   const unreadChats = data.chats?.filter((c: any) => c.unread).length || 0;
   const pendingSubmissions = data.submissions?.filter((s: any) => s.status === 'pending').length || 0;
   const pendingWithdrawals = data.withdraws?.filter((w: any) => w.status === 'pending').length || 0;
-  const totalAlerts = unreadChats + pendingSubmissions + pendingWithdrawals;
+
+  const totalProductsCount = (data.buyerProducts || []).length;
+  const totalDepositsCount = (data.buyerDeposits || []).length;
+  const pendingDepositsCount = (data.buyerDeposits || []).filter((d: any) => d.status === 'pending').length;
+  const pendingOrdersCount = (data.buyerOrders || []).filter((o: any) => o.status === 'pending').length;
+  const claimedOrdersCount = (data.buyerOrders || []).filter((o: any) => o.status === 'warranty_claimed' || o.warrantyStatus === 'claimed').length;
+  const totalOrdersCount = (data.buyerOrders || []).length;
+
+  const totalAlerts = unreadChats + pendingSubmissions + pendingWithdrawals + pendingDepositsCount + pendingOrdersCount;
+
+  const buyerMenuItems = [
+    { 
+      id: 'buyer_storefront', 
+      tab: 'storefront',
+      label: 'Buyer Storefront & Dashboard', 
+      icon: Store, 
+      icon3d: 'icon-3d-indigo',
+      badge: undefined
+    },
+    { 
+      id: 'buyer_products', 
+      tab: 'products',
+      label: `Products & Stock Bank (${totalProductsCount})`, 
+      icon: Package, 
+      badge: totalProductsCount,
+      badgeColor: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+      icon3d: 'icon-3d-emerald'
+    },
+    { 
+      id: 'buyer_deposits', 
+      tab: 'deposits',
+      label: pendingDepositsCount > 0 ? `Deposit Requests (${pendingDepositsCount} New)` : `Deposit Requests (${totalDepositsCount})`, 
+      icon: DollarSign, 
+      badge: pendingDepositsCount > 0 ? `${pendingDepositsCount} New` : (totalDepositsCount > 0 ? `${totalDepositsCount} Total` : undefined),
+      badgeColor: pendingDepositsCount > 0 ? 'bg-gradient-to-r from-red-600 to-amber-600 text-white font-black animate-pulse shadow-sm ring-2 ring-red-400/40' : 'bg-slate-100 text-slate-700 font-bold border border-slate-200',
+      icon3d: 'icon-3d-amber'
+    },
+    { 
+      id: 'buyer_orders', 
+      tab: 'orders',
+      label: 'Orders & Delivery Ledger', 
+      icon: ShoppingCart, 
+      badge: pendingOrdersCount > 0 
+        ? `${pendingOrdersCount} Pending` 
+        : (claimedOrdersCount > 0 ? `${claimedOrdersCount} Claimed` : undefined),
+      badgeColor: pendingOrdersCount > 0 
+        ? 'bg-amber-500 text-white font-black animate-pulse' 
+        : 'bg-red-500 text-white font-black animate-pulse',
+      icon3d: 'icon-3d-rose'
+    },
+    { 
+      id: 'buyer_gateways', 
+      tab: 'gateways',
+      label: 'Deposit Gateways & Numbers', 
+      icon: CreditCard, 
+      badge: undefined,
+      icon3d: 'icon-3d-purple'
+    }
+  ];
+
+  const handleBuyerTabClick = (tabKey: 'storefront' | 'products' | 'deposits' | 'orders' | 'gateways') => {
+    if (setBuyerTab) setBuyerTab(tabKey);
+    if (setPortalMode) setPortalMode('buying');
+    setSidebarOpen(false);
+  };
 
   const audioEnabled = data.settings?.audio_alert_enabled !== undefined
     ? data.settings.audio_alert_enabled
@@ -141,6 +227,7 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
         { id: 'chat', label: 'Live Support Chat', icon: MessageSquare, badge: data.chats?.filter((c: any) => c.unread).length, icon3d: 'icon-3d-indigo' },
         { id: 'notif', label: 'Push & Popup Notice', icon: BellRing, icon3d: 'icon-3d-rose' },
         { id: 'log', label: 'Activity Logs', icon: ScrollText, icon3d: 'icon-3d-slate' },
+        { id: 'api_docs', label: 'REST API & DB Connect', icon: Server, icon3d: 'icon-3d-cyan' },
       ]
     }
   ];
@@ -174,6 +261,38 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
               </span>
             </div>
           </div>
+        </div>
+
+        {/* ================= Mode Switcher: Selling Gmail vs Buying Gmail ================= */}
+        <div className="flex items-center bg-slate-950/90 p-1 rounded-2xl border border-slate-800 shadow-inner order-3 md:order-2">
+          <button
+            onClick={() => setPortalMode && setPortalMode('selling')}
+            title="Selling Gmail মোডে স্যুইচ করুন (বর্তমান সকল ফিচার ও সাবমিশন)"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
+              portalMode === 'selling'
+                ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-600/40 ring-1 ring-indigo-400/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+            }`}
+          >
+            <Store size={14} className={portalMode === 'selling' ? 'text-white' : 'text-slate-400'} />
+            <span className="tracking-wide">Selling Gmail</span>
+            {pendingSubmissions > 0 && portalMode === 'selling' && (
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setPortalMode && setPortalMode('buying')}
+            title="Buying Gmail মোডে স্যুইচ করুন"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 ${
+              portalMode === 'buying'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/40 ring-1 ring-amber-400/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+            }`}
+          >
+            <ShoppingCart size={14} className={portalMode === 'buying' ? 'text-white' : 'text-amber-400'} />
+            <span className="tracking-wide">Buying Gmail</span>
+          </button>
         </div>
 
         {/* ================= Live Shift Timer Tab Badges in Topbar ================= */}
@@ -230,8 +349,33 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
           </button>
         </div>
 
-        {/* Right Action Icons (Gmail Reminder, Audio, Alerts, Logout) */}
+        {/* Right Action Icons (API Connect, Gmail Reminder, Audio, Alerts, Logout) */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Quick Deposit Requests Live Alert Trigger */}
+          {pendingDepositsCount > 0 && (
+            <button
+              onClick={() => {
+                if (setBuyerTab) setBuyerTab('deposits');
+                if (setPortalMode) setPortalMode('buying');
+              }}
+              title={`${pendingDepositsCount}টি নতুন ডিপোজিট রিকোয়েস্ট পেন্ডিং রয়েছে! ক্লিক করে দেখতে যান।`}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/40 ring-2 ring-amber-300 animate-bounce"
+            >
+              <DollarSign size={14} className="text-white stroke-[3]" />
+              <span className="text-[11px] font-black">{pendingDepositsCount} Deposit New!</span>
+            </button>
+          )}
+
+          {/* REST API & DB Connection Button */}
+          <button
+            onClick={() => setApiModalOpen(true)}
+            title="REST API & External Admin Panel Connection Setup"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 border border-indigo-500/40"
+          >
+            <Server size={14} className="text-indigo-400" />
+            <span className="hidden md:inline text-[11px] font-black text-indigo-200">API Setup</span>
+          </button>
+
           {/* Configurable Gmail Check Reminder Trigger */}
           <button
             onClick={() => showAttractiveGmailReminder(true)}
@@ -317,37 +461,197 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
             </div>
           </div>
 
+          {/* ================= Sidebar Portal Switcher Card ================= */}
+          <div className="p-3 bg-slate-50 border-b border-slate-200/70">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 mb-2 flex items-center justify-between">
+              <span>Platform Portal</span>
+              <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                portalMode === 'selling' 
+                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-200' 
+                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+              }`}>
+                {portalMode === 'selling' ? 'Selling Active' : 'Buying (Preview)'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/80 rounded-xl">
+              <button
+                onClick={() => {
+                  if (setPortalMode) setPortalMode('selling');
+                  setSidebarOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-black transition-all ${
+                  portalMode === 'selling'
+                    ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-black/5'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Store size={13} />
+                <span>Selling</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  if (setPortalMode) setPortalMode('buying');
+                  setSidebarOpen(false);
+                }}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-black transition-all relative ${
+                  portalMode === 'buying'
+                    ? 'bg-white text-amber-700 shadow-sm ring-1 ring-black/5'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ShoppingCart size={13} />
+                <span>Buying</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping absolute top-1 right-1"></span>
+              </button>
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-4 space-y-5">
-            {categories.map((cat, idx) => (
-              <div key={idx} className="space-y-1">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3.5 pb-1">{cat.title}</div>
-                {cat.items.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => { setCurrentTab(item.id); setSidebarOpen(false); }}
-                    className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 active:scale-[0.98]
-                      ${currentTab === item.id 
-                        ? 'bg-[#4f46e5] text-white shadow-md shadow-indigo-600/15' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-bold'
-                      }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${item.icon3d || 'icon-3d-indigo'} ${currentTab === item.id ? 'ring-2 ring-white/40 shadow-lg' : 'opacity-90'}`}>
-                        <item.icon size={15} className="stroke-[2.5] drop-shadow-sm text-white" />
-                      </div>
-                      <div className="truncate text-left">
-                        <div className="truncate">{item.label}</div>
-                      </div>
+            {portalMode === 'buying' ? (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-indigo-500/10 border border-amber-300/60 rounded-2xl p-3.5 text-amber-950 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-black text-xs text-amber-900">
+                      <Sparkles size={16} className="text-amber-600 animate-spin" />
+                      <span>Buying Gmail Portal</span>
                     </div>
-                    {(item.badge && item.badge > 0) ? (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center shrink-0
-                        ${currentTab === item.id ? 'bg-white/20 text-white' : 'bg-red-50 text-red-600 border border-red-100'}
-                      `}>{item.badge}</span>
-                    ) : null}
+                    <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[9px] font-black uppercase">
+                      Live Hub
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-900/80 leading-relaxed font-medium">
+                    মার্কেটপ্লেস প্রোডাক্ট, ক্রেতা স্টক ব্যাংক, ডিপোজিট ও অর্ডার লেজার পরিচালনা করুন।
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (setPortalMode) setPortalMode('selling');
+                      setSidebarOpen(false);
+                    }}
+                    className="w-full py-2 px-3 bg-white text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black hover:bg-indigo-50 shadow-xs flex items-center justify-center gap-1.5 mt-1"
+                  >
+                    <ArrowRightLeft size={13} />
+                    <span>Selling Gmail এ ফিরে যান</span>
                   </button>
-                ))}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3.5 pb-1">
+                    Buyer Menu Navigation (মেনু আইকন)
+                  </div>
+                  {buyerMenuItems.map((bItem) => {
+                    const isActive = buyerTab === bItem.tab;
+                    const IconComp = bItem.icon;
+                    return (
+                      <button
+                        key={bItem.id}
+                        onClick={() => handleBuyerTabClick(bItem.tab as any)}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 active:scale-[0.98] ${
+                          isActive
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25 ring-1 ring-amber-400/40'
+                            : 'text-slate-700 hover:bg-amber-50/70 hover:text-amber-900 font-bold'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${bItem.icon3d || 'icon-3d-amber'} ${isActive ? 'ring-2 ring-white/40 shadow-lg' : 'opacity-90'}`}>
+                            <IconComp size={15} className="stroke-[2.5] drop-shadow-sm text-white" />
+                          </div>
+                          <div className="truncate text-left">
+                            <div className="truncate">{bItem.label}</div>
+                          </div>
+                        </div>
+                        {bItem.badge !== undefined && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center shrink-0 ${
+                            isActive 
+                              ? 'bg-white/25 text-white' 
+                              : (bItem.badgeColor || 'bg-amber-100 text-amber-800 border border-amber-200')
+                          }`}>
+                            {bItem.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            ))}
+            ) : (
+              <>
+                {categories.map((cat, idx) => (
+                  <div key={idx} className="space-y-1">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-3.5 pb-1">{cat.title}</div>
+                    {cat.items.map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          if (item.id === 'api_docs') {
+                            setApiModalOpen(true);
+                            setSidebarOpen(false);
+                            return;
+                          }
+                          setCurrentTab(item.id);
+                          setSidebarOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-3.5 py-3 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 active:scale-[0.98]
+                          ${currentTab === item.id 
+                            ? 'bg-[#4f46e5] text-white shadow-md shadow-indigo-600/15' 
+                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-bold'
+                          }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${item.icon3d || 'icon-3d-indigo'} ${currentTab === item.id ? 'ring-2 ring-white/40 shadow-lg' : 'opacity-90'}`}>
+                            <item.icon size={15} className="stroke-[2.5] drop-shadow-sm text-white" />
+                          </div>
+                          <div className="truncate text-left">
+                            <div className="truncate">{item.label}</div>
+                          </div>
+                        </div>
+                        {(item.badge && item.badge > 0) ? (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center shrink-0
+                            ${currentTab === item.id ? 'bg-white/20 text-white' : 'bg-red-50 text-red-600 border border-red-100'}
+                          `}>{item.badge}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                ))}
+
+                {/* Direct Buyer Hub Section in Sidebar (accessible from Selling mode) */}
+                <div className="space-y-1 pt-2 border-t border-slate-100">
+                  <div className="flex items-center justify-between px-3.5 pb-1">
+                    <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                      <Sparkles size={11} className="text-amber-500" />
+                      Buyer Hub (মার্কেটপ্লেস)
+                    </span>
+                    <span className="text-[9px] font-bold text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">5 টি মেনু</span>
+                  </div>
+                  {buyerMenuItems.map((bItem) => {
+                    const IconComp = bItem.icon;
+                    return (
+                      <button
+                        key={bItem.id}
+                        onClick={() => handleBuyerTabClick(bItem.tab as any)}
+                        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold tracking-wide transition-all duration-200 active:scale-[0.98] text-slate-700 hover:bg-amber-50/80 hover:text-amber-900 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 ${bItem.icon3d || 'icon-3d-amber'} opacity-90 group-hover:opacity-100`}>
+                            <IconComp size={14} className="stroke-[2.5] text-white" />
+                          </div>
+                          <div className="truncate text-left font-extrabold text-[11px] text-slate-800 group-hover:text-amber-900">
+                            {bItem.label}
+                          </div>
+                        </div>
+                        {bItem.badge !== undefined && (
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black tracking-normal min-w-5 text-center shrink-0 ${bItem.badgeColor || 'bg-amber-100 text-amber-800'}`}>
+                            {bItem.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </aside>
 
@@ -358,6 +662,12 @@ export default function AdminLayout({ children, currentTab, setCurrentTab, onLog
           </div>
         </main>
       </div>
+
+      {/* REST API & DB Connection Modal */}
+      <ApiConnectionModal 
+        isOpen={apiModalOpen} 
+        onClose={() => setApiModalOpen(false)} 
+      />
     </div>
   );
 }

@@ -299,9 +299,11 @@ export default function Users({ data, setCurrentTab }: any) {
   };
 
   const handleAddBal = async (u: any) => {
+    const cur = Number(u.balance || 0);
+    const safeCur = isNaN(cur) ? 0 : cur;
     const { value: amt } = await Swal.fire({
       title: 'Adjust Main Balance (৳)',
-      text: `Current balance: ৳${(u.balance || 0).toFixed(2)}. Enter positive number to add, negative to deduct.`,
+      text: `Current balance: ৳${safeCur.toFixed(2)}. Enter positive number to add, negative to deduct.`,
       input: 'number',
       inputPlaceholder: 'e.g. 50 or -20',
       showCancelButton: true,
@@ -310,25 +312,33 @@ export default function Users({ data, setCurrentTab }: any) {
     });
 
     if (amt !== undefined && amt !== '') {
-      const newBal = (u.balance || 0) + Number(amt);
-      await update(ref(db, `users/${u.uid}`), { balance: newBal });
+      const amtNum = Number(amt);
+      if (isNaN(amtNum)) return;
+      const newBal = Number((safeCur + amtNum).toFixed(2));
+      if (isNaN(newBal)) return;
+
+      await update(ref(db, `users/${u.uid}`), { 
+        balance: newBal
+      });
       
       // Log notification
       await push(ref(db, `users/${u.uid}/notifications`), {
         title: 'ব্যালেন্স অ্যাডজাস্টমেন্ট',
-        message: `অ্যাডমিন কর্তৃক আপনার একাউন্টে ৳${amt} সমন্বয় করা হয়েছে। বর্তমান ব্যালেন্স: ৳${newBal.toFixed(2)}`,
-        type: Number(amt) >= 0 ? 'success' : 'warning',
+        message: `অ্যাডমিন কর্তৃক আপনার একাউন্টে ৳${amtNum} সমন্বয় করা হয়েছে। বর্তমান ব্যালেন্স: ৳${newBal.toFixed(2)}`,
+        type: amtNum >= 0 ? 'success' : 'warning',
         timestamp: Date.now()
       });
 
-      Swal.fire('Updated', `Balance modified by ৳${amt}. New balance: ৳${newBal.toFixed(2)}`, 'success');
+      Swal.fire('Updated', `Balance modified by ৳${amtNum}. New balance: ৳${newBal.toFixed(2)}`, 'success');
     }
   };
 
   const handleHoldBal = async (u: any) => {
+    const curHold = Number(u.hold || 0);
+    const safeHold = isNaN(curHold) ? 0 : curHold;
     const { value: amt } = await Swal.fire({
       title: 'Adjust Hold Balance (৳)',
-      text: `Current hold: ৳${(u.hold || 0).toFixed(2)}`,
+      text: `Current hold: ৳${safeHold.toFixed(2)}`,
       input: 'number',
       inputPlaceholder: 'e.g. 0 to clear hold',
       showCancelButton: true,
@@ -337,8 +347,10 @@ export default function Users({ data, setCurrentTab }: any) {
     });
 
     if (amt !== undefined && amt !== '') {
-      await update(ref(db, `users/${u.uid}`), { hold: Number(amt) });
-      Swal.fire('Updated', `Hold balance updated to ৳${amt}`, 'success');
+      const holdNum = Number(amt);
+      if (isNaN(holdNum)) return;
+      await update(ref(db, `users/${u.uid}`), { hold: Number(holdNum.toFixed(2)) });
+      Swal.fire('Updated', `Hold balance updated to ৳${holdNum}`, 'success');
     }
   };
 

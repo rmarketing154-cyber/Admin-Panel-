@@ -135,6 +135,43 @@ class SoundAlertManager {
   }
 
   /**
+   * Upbeat double-chime for incoming buyer deposit requests
+   */
+  playDepositAlert(volume = 0.8) {
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+
+      const now = ctx.currentTime;
+      const notes = [
+        { freq: 440.00, start: 0.0, dur: 0.2, gain: 0.3 },   // A4
+        { freq: 554.37, start: 0.08, dur: 0.25, gain: 0.35 }, // C#5
+        { freq: 659.25, start: 0.16, dur: 0.45, gain: 0.45 }  // E5
+      ];
+
+      notes.forEach(({ freq, start, dur, gain: gVal }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, now + start);
+
+        gain.gain.setValueAtTime(0.0001, now + start);
+        gain.gain.exponentialRampToValueAtTime(gVal * volume, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start(now + start);
+        osc.stop(now + start + dur);
+      });
+    } catch (e) {
+      console.warn('Failed to play deposit alert sound:', e);
+    }
+  }
+
+  /**
    * Warm notification sound for support chat
    */
   playChatAlert(volume = 0.8) {

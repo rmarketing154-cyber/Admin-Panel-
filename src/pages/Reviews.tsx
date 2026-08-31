@@ -2,11 +2,31 @@ import React, { useState, useMemo } from 'react';
 import { ref, update, remove, push, set } from 'firebase/database';
 import { db } from '../lib/firebase';
 import Swal from 'sweetalert2';
-import { Star, Plus, Check, X, Trash2, Search, User, Calendar, MessageSquare, ThumbsUp } from 'lucide-react';
+import { Star, Plus, Check, X, Trash2, Search, User, Calendar, MessageSquare, ThumbsUp, Pin } from 'lucide-react';
+
+const formatReviewDate = (createdAt: any) => {
+  if (!createdAt) return 'Recent';
+  const num = Number(createdAt);
+  if (!isNaN(num)) {
+    const d = new Date(num);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-GB');
+    }
+  }
+  const d2 = new Date(createdAt);
+  if (!isNaN(d2.getTime())) {
+    return d2.toLocaleDateString('en-GB');
+  }
+  if (typeof createdAt === 'string') {
+    return createdAt;
+  }
+  return 'Recent';
+};
 
 export default function Reviews({ data }: any) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'approved' | 'pending' | 'rejected'>('all');
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const usersMap = useMemo(() => {
     const map = new Map<string, any>();
@@ -18,13 +38,27 @@ export default function Reviews({ data }: any) {
   }, [data.users]);
 
   const reviews = useMemo(() => {
-    let list = (data.reviews || []).map((r: any) => {
+    // Filter out malformed reviews (empty/missing comments and ratings)
+    let list = (data.reviews || []).filter((r: any) => {
+      if (!r) return false;
+      const commentText = (r.comment || r.message || r.description || r.review || r.text || r.content || r.feedback || r.reviewText || r.msg || '');
+      const hasText = commentText.toString().trim().length > 0;
+      const hasRating = r.rating !== undefined && r.rating !== null && r.rating !== '';
+      const hasUser = !!(r.userName || r.name || r.email || r.userId);
+      return hasUser && (hasText || hasRating);
+    }).map((r: any) => {
       const matchedUser = usersMap.get(r.userId) || usersMap.get((r.userName || '').toLowerCase()) || {};
       return {
         ...r,
         matchedUser
       };
-    }).sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+    }).sort((a: any, b: any) => {
+      // Pinned reviews go first
+      const aPinned = a.pinned ? 1 : 0;
+      const bPinned = b.pinned ? 1 : 0;
+      if (bPinned !== aPinned) return bPinned - aPinned;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
 
     if (filter === 'approved') list = list.filter((r: any) => r.approved || r.status === 'approved');
     if (filter === 'pending') list = list.filter((r: any) => (!r.approved && r.status !== 'rejected') || r.status === 'pending');
@@ -33,15 +67,15 @@ export default function Reviews({ data }: any) {
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter((r: any) => 
-        (r.userName || r.name || '').toLowerCase().includes(q) ||
-        (r.comment || r.message || '').toLowerCase().includes(q)
+        (r.userName || r.name || r.nameEnglish || '').toLowerCase().includes(q) ||
+        (r.comment || r.message || r.description || r.review || r.text || r.content || r.feedback || r.reviewText || r.msg || '').toLowerCase().includes(q)
       );
     }
 
     return list;
   }, [data.reviews, usersMap, filter, search]);
 
-  const updateReviewStatus = async (key: string, newStatus: 'approved' | 'rejected' | 'pending') => {
+  const getPaths = (key: string, parentKey?: string) => {
     const paths = [
       `reviews/${key}`,
       `review/${key}`,
@@ -51,12 +85,58 @@ export default function Reviews({ data }: any) {
       `app_reviews/${key}`,
       `settings/reviews/${key}`
     ];
+    if (parentKey) {
+      paths.push(`user_reviews/${parentKey}/${key}`);
+      paths.push(`app_reviews/${parentKey}/${key}`);
+    }
+    return paths;
+  };
+
+  const togglePinReview = async (reviewObj: any, currentPinned: boolean) => {
+    const key = reviewObj.key;
+    const parentKey = reviewObj.parentKey;
+    const paths = getPaths(key, parentKey);
+    const newPinned = !currentPinned;
     
+    const updatedObject = {
+      ...reviewObj,
+      pinned: newPinned
+    };
+    delete updatedObject.parentKey;
+    delete updatedObject.matchedUser;
+    delete updatedObject.key;
+
     try {
-      await Promise.all(paths.map(path => update(ref(db, path), { 
-        approved: newStatus === 'approved',
-        status: newStatus 
-      })));
+      await Promise.all(paths.map(path => set(ref(db, path), updatedObject)));
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: newPinned ? 'Review Pinned to Top' : 'Review Unpinned',
+        showConfirmButton: false,
+        timer: 1500
+      });
+    } catch (err: any) {
+      Swal.fire('Error', err.message || 'Failed to toggle pin status', 'error');
+    }
+  };
+
+  const updateReviewStatus = async (reviewObj: any, newStatus: 'approved' | 'rejected' | 'pending') => {
+    const key = reviewObj.key;
+    const parentKey = reviewObj.parentKey;
+    const paths = getPaths(key, parentKey);
+    
+    const updatedObject = {
+      ...reviewObj,
+      approved: newStatus === 'approved',
+      status: newStatus
+    };
+    delete updatedObject.parentKey;
+    delete updatedObject.matchedUser;
+    delete updatedObject.key;
+
+    try {
+      await Promise.all(paths.map(path => set(ref(db, path), updatedObject)));
       Swal.fire({
         toast: true,
         position: 'top-end',
@@ -70,7 +150,7 @@ export default function Reviews({ data }: any) {
     }
   };
 
-  const deleteReview = async (key: string) => {
+  const deleteReview = async (key: string, parentKey?: string) => {
     const confirm = await Swal.fire({
       title: 'Delete Review?',
       text: 'Are you sure you want to permanently delete this testimonial across all app pathways?',
@@ -81,15 +161,7 @@ export default function Reviews({ data }: any) {
     });
 
     if (confirm.isConfirmed) {
-      const paths = [
-        `reviews/${key}`,
-        `review/${key}`,
-        `testimonials/${key}`,
-        `feedback/${key}`,
-        `user_reviews/${key}`,
-        `app_reviews/${key}`,
-        `settings/reviews/${key}`
-      ];
+      const paths = getPaths(key, parentKey);
       try {
         await Promise.all(paths.map(path => remove(ref(db, path))));
         Swal.fire('Deleted', 'Review has been removed from all channels', 'success');
@@ -107,6 +179,10 @@ export default function Reviews({ data }: any) {
           <div>
             <label class="text-xs font-bold text-slate-600 block mb-1">User Full Name / Alias:</label>
             <input type="text" id="revName" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm" placeholder="e.g. Tanvir Hasan">
+          </div>
+          <div>
+            <label class="text-xs font-bold text-slate-600 block mb-1">Profile Photo/Avatar URL (অপশনাল):</label>
+            <input type="text" id="revAvatar" class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2.5 text-sm" placeholder="e.g. https://images.unsplash.com/photo-...">
           </div>
           <div>
             <label class="text-xs font-bold text-slate-600 block mb-1">Review Feedback Text:</label>
@@ -128,14 +204,17 @@ export default function Reviews({ data }: any) {
     }).then(async r => {
       if (r.isConfirmed) {
         const name = (document.getElementById('revName') as HTMLInputElement).value;
+        const avatarUrl = (document.getElementById('revAvatar') as HTMLInputElement).value;
         const comment = (document.getElementById('revComment') as HTMLTextAreaElement).value;
         const rating = Number((document.getElementById('revRating') as HTMLSelectElement).value);
         if (name && comment) {
           const revObj = {
             userName: name,
+            avatarUrl: avatarUrl.trim() || null,
             comment,
             rating,
             approved: true,
+            pinned: false,
             createdAt: Date.now()
           };
           
@@ -245,19 +324,43 @@ export default function Reviews({ data }: any) {
           </div>
         )}
         
-        {reviews.map((r: any) => (
-          <div key={r.key} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-3 hover:border-indigo-200 transition-all">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 font-black text-base flex items-center justify-center shrink-0">
-                  {r.userName?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
+        {reviews.map((r: any) => {
+          const rawAvatar = r.avatarUrl || r.avatar || r.photoUrl || r.photo || r.matchedUser?.photoURL || r.matchedUser?.avatarUrl || r.matchedUser?.avatar || r.matchedUser?.photoUrl || r.matchedUser?.photo;
+          const avatarSrc = !brokenImages[r.key] ? rawAvatar : null;
+
+          return (
+            <div key={r.key} className={`bg-white border rounded-2xl p-5 shadow-sm space-y-3 hover:border-indigo-200 transition-all ${
+              r.pinned ? 'border-rose-300 ring-4 ring-rose-500/5' : 'border-slate-200'
+            }`}>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-3">
+                  {avatarSrc ? (
+                    <img
+                      src={avatarSrc}
+                      alt={r.userName || 'Avatar'}
+                      referrerPolicy="no-referrer"
+                      className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-200"
+                      onError={() => {
+                        setBrokenImages(prev => ({ ...prev, [r.key]: true }));
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 font-black text-base flex items-center justify-center shrink-0">
+                      {r.userName?.charAt(0)?.toUpperCase() || 'U'}
+                    </div>
+                  )}
 
                 <div>
                   <div className="font-bold text-slate-900 text-base flex items-center gap-2">
                     {r.userName || r.name || 'User'}
+                    {r.pinned && (
+                      <span className="text-[10px] font-black text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 animate-pulse">
+                        <Pin size={10} className="fill-rose-500 text-rose-500" />
+                        Pinned to Top
+                      </span>
+                    )}
                     {r.matchedUser?.uid && (
-                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                      <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md shrink-0">
                         Verified Member (Bal: ৳{(r.matchedUser.balance || 0).toFixed(0)})
                       </span>
                     )}
@@ -265,7 +368,7 @@ export default function Reviews({ data }: any) {
                   <div className="text-amber-500 text-xs tracking-wider flex items-center gap-1 font-bold">
                     {'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}
                     <span className="text-slate-400 font-normal ml-2">
-                      {r.createdAt ? new Date(r.createdAt).toLocaleDateString('en-GB') : 'Recent'}
+                      {formatReviewDate(r.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -280,13 +383,13 @@ export default function Reviews({ data }: any) {
             </div>
             
             <p className="text-slate-700 text-sm bg-slate-50/70 p-4 rounded-xl border border-slate-200 leading-relaxed font-medium">
-              "{r.comment || r.message || ''}"
+              "{r.comment || r.message || r.description || r.review || r.text || r.content || r.feedback || r.reviewText || r.msg || 'কোনো বিবরণ দেওয়া হয়নি।'}"
             </p>
             
-            <div className="flex flex-wrap gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               {(r.status !== 'approved' && !r.approved) && (
                 <button 
-                  onClick={() => updateReviewStatus(r.key, 'approved')} 
+                  onClick={() => updateReviewStatus(r, 'approved')} 
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-colors bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
                 >
                   <Check size={14} /> Approve & Display
@@ -294,14 +397,29 @@ export default function Reviews({ data }: any) {
               )}
               {r.status !== 'rejected' && (
                 <button 
-                  onClick={() => updateReviewStatus(r.key, 'rejected')} 
+                  onClick={() => updateReviewStatus(r, 'rejected')} 
                   className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-colors bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
                 >
                   <X size={14} /> Reject & Hide
                 </button>
               )}
+              
+              {/* Pin / Unpin Button */}
               <button 
-                onClick={() => deleteReview(r.key)} 
+                onClick={() => togglePinReview(r, r.pinned)} 
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1 border ${
+                  r.pinned 
+                    ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' 
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+                title={r.pinned ? "Unpin Review" : "Pin to Top"}
+              >
+                <Pin size={14} className={r.pinned ? "fill-rose-500 text-rose-500" : "text-slate-400"} />
+                <span>{r.pinned ? 'Unpin' : 'Pin'}</span>
+              </button>
+
+              <button 
+                onClick={() => deleteReview(r.key, r.parentKey)} 
                 className="px-4 py-2.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors flex items-center justify-center"
                 title="Delete Testimonial"
               >
@@ -309,7 +427,7 @@ export default function Reviews({ data }: any) {
               </button>
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );

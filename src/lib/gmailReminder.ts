@@ -1,6 +1,6 @@
 import Swal from 'sweetalert2';
 import { soundAlerts } from './sound';
-import { db, getFirebaseFunctions } from './firebase';
+import { db, auth, getFirebaseFunctions } from './firebase';
 import { ref, push } from 'firebase/database';
 import { httpsCallable } from 'firebase/functions';
 
@@ -84,33 +84,35 @@ export function openThisAppDirectly(): void {
  */
 export async function sendMobilePushToAdmins(title: string, body: string) {
   try {
-    // 1. Write to Firebase Realtime Database 'admin_notifications'
-    // This directly triggers Android's background RealtimeAlertService to post a native status bar notification!
-    await push(ref(db, 'admin_notifications'), {
-      title: title,
-      message: body,
-      body: body,
-      type: 'gmail',
-      target: 'submissions',
-      timestamp: Date.now(),
-      sendPush: true
-    });
+    // Only attempt database push if an admin is authenticated
+    if (auth?.currentUser) {
+      await push(ref(db, 'admin_notifications'), {
+        title: title,
+        message: body,
+        body: body,
+        type: 'gmail',
+        target: 'submissions',
+        timestamp: Date.now(),
+        sendPush: true
+      });
+    }
   } catch (err) {
     console.warn('RTDB notification dispatch note:', err);
   }
 
   try {
-    // 2. Call Cloud Function FCM Dispatcher to reach FCM Tokens
-    const fns = getFirebaseFunctions();
-    const sendPushFn = httpsCallable(fns, 'sendManualAdminPush');
-    await sendPushFn({
-      title: title,
-      body: body,
-      type: 'gmail',
-      target: 'submissions',
-      id: 'gmail_reminder_' + Date.now()
-    });
-    console.log('Mobile FCM push notification dispatched to admin phones.');
+    if (auth?.currentUser) {
+      const fns = getFirebaseFunctions();
+      const sendPushFn = httpsCallable(fns, 'sendManualAdminPush');
+      await sendPushFn({
+        title: title,
+        body: body,
+        type: 'gmail',
+        target: 'submissions',
+        id: 'gmail_reminder_' + Date.now()
+      });
+      console.log('Mobile FCM push notification dispatched to admin phones.');
+    }
   } catch (err) {
     console.warn('FCM callable note:', err);
   }

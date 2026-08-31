@@ -19,6 +19,7 @@ import PushNotification from './pages/PushNotification';
 import AuditLogs from './pages/AuditLogs';
 import TodayActivity from './pages/TodayActivity';
 import Maintenance from './pages/Maintenance';
+import BuyingGmail from './pages/BuyingGmail';
 import Swal from 'sweetalert2';
 import { Loader2 } from 'lucide-react';
 import { initGmailReminderService } from './lib/gmailReminder';
@@ -34,6 +35,8 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState('dashboard');
+  const [portalMode, setPortalMode] = useState<'selling' | 'buying'>('selling');
+  const [buyerTab, setBuyerTab] = useState<'storefront' | 'products' | 'deposits' | 'orders' | 'gateways'>('storefront');
   
   const data = useAdminData(user);
 
@@ -44,6 +47,7 @@ export default function App() {
     (window as any).onNotificationDeepLink = (target: string, id?: string) => {
       console.log('FCM Deep Link received:', target, id);
       if (target) {
+        setPortalMode('selling');
         setCurrentTab(target);
       }
     };
@@ -102,26 +106,42 @@ export default function App() {
     <AdminLayout 
       currentTab={currentTab} 
       setCurrentTab={setCurrentTab} 
+      portalMode={portalMode}
+      setPortalMode={setPortalMode}
+      buyerTab={buyerTab}
+      setBuyerTab={setBuyerTab}
       onLogout={handleLogout}
       userEmail={user.email}
       data={data}
     >
-      {currentTab === 'dashboard' && <Dashboard data={data} setCurrentTab={setCurrentTab} />}
-      {currentTab === 'submissions' && <Submissions data={data} type="pending" />}
-      {currentTab === 'checking' && <Submissions data={data} type="checking" />}
-      {currentTab === 'withdrawals' && <Withdrawals data={data} />}
-      {currentTab === 'users' && <Users data={data} />}
-      {currentTab === 'today_activity' && <TodayActivity data={data} />}
-      {currentTab === 'topsellers' && <TopSellers data={data} />}
-      {currentTab === 'reviews' && <Reviews data={data} />}
-      {currentTab === 'referrals' && <Referrals data={data} />}
-      {currentTab === 'settings' && <Settings data={data} />}
-      {currentTab === 'maintenance' && <Maintenance data={data} />}
-      {currentTab === 'gateways' && <Gateways data={data} />}
-      {currentTab === 'shifts' && <Shifts data={data} />}
-      {currentTab === 'chat' && <SupportChat data={data} />}
-      {currentTab === 'notif' && <PushNotification data={data} />}
-      {currentTab === 'log' && <AuditLogs data={data} />}
+      {portalMode === 'buying' ? (
+        <BuyingGmail 
+          onSwitchToSelling={() => setPortalMode('selling')} 
+          data={data} 
+          currentUser={user} 
+          activeSubTab={buyerTab}
+          setActiveSubTab={setBuyerTab}
+        />
+      ) : (
+        <>
+          {currentTab === 'dashboard' && <Dashboard data={data} setCurrentTab={setCurrentTab} />}
+          {currentTab === 'submissions' && <Submissions data={data} type="pending" />}
+          {currentTab === 'checking' && <Submissions data={data} type="checking" />}
+          {currentTab === 'withdrawals' && <Withdrawals data={data} />}
+          {currentTab === 'users' && <Users data={data} />}
+          {currentTab === 'today_activity' && <TodayActivity data={data} />}
+          {currentTab === 'topsellers' && <TopSellers data={data} />}
+          {currentTab === 'reviews' && <Reviews data={data} />}
+          {currentTab === 'referrals' && <Referrals data={data} />}
+          {currentTab === 'settings' && <Settings data={data} />}
+          {currentTab === 'maintenance' && <Maintenance data={data} />}
+          {currentTab === 'gateways' && <Gateways data={data} />}
+          {currentTab === 'shifts' && <Shifts data={data} />}
+          {currentTab === 'chat' && <SupportChat data={data} />}
+          {currentTab === 'notif' && <PushNotification data={data} />}
+          {currentTab === 'log' && <AuditLogs data={data} />}
+        </>
+      )}
     </AdminLayout>
   );
 }

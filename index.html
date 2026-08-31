@@ -1,1 +1,45 @@
-<!doctype html><html lang="en">  <head>    <meta charset="UTF-8" />    <meta name="viewport" content="width=device-width, initial-scale=1.0" />    <link rel="icon" type="image/png" href="https://files.catbox.moe/cqiv5k.png" />    <link rel="apple-touch-icon" href="https://files.catbox.moe/cqiv5k.png" />    <title>Mail Factory Admin</title>    <meta name="description" content="Mail Factory Admin Panel" />    <meta property="og:title" content="Mail Factory Admin" />    <meta property="og:description" content="Mail Factory Admin Panel" />    <meta property="og:type" content="website" />    <meta name="twitter:card" content="summary_large_image" />  </head>  <body>    <div id="root"></div>    <script type="module" src="/src/main.tsx"></script>  </body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        function suppressError(e) {
+          var msg = String(e?.reason?.message || e?.reason || e?.message || e || '');
+          if (
+            msg.includes('WebSocket') ||
+            msg.includes('websocket') ||
+            msg.includes('closed without opened') ||
+            msg.includes('PERMISSION_DENIED') ||
+            msg.includes('vite') ||
+            msg.includes('Failed to fetch dynamically imported module')
+          ) {
+            if (e.preventDefault) e.preventDefault();
+            if (e.stopPropagation) e.stopPropagation();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+            return true;
+          }
+        }
+        window.addEventListener('unhandledrejection', suppressError, true);
+        window.addEventListener('error', suppressError, true);
+        window.addEventListener('vite:preloadError', function(event) {
+          console.warn('Vite preload error, reloading window...', event);
+          window.location.reload();
+        }, true);
+      })();
+    </script>
+    <link rel="icon" type="image/png" href="https://files.catbox.moe/cqiv5k.png" />
+    <link rel="apple-touch-icon" href="https://files.catbox.moe/cqiv5k.png" />
+    <title>Mail Factory Admin</title>
+    <meta name="description" content="Mail Factory Admin Panel" />
+    <meta property="og:title" content="Mail Factory Admin" />
+    <meta property="og:description" content="Mail Factory Admin Panel" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

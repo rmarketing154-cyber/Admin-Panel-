@@ -2,10 +2,17 @@ import React, { useState } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import Swal from 'sweetalert2';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+
+const ADMIN_ACCOUNTS = [
+  { email: 'rmarketing154@gmail.com', label: 'R Marketing' },
+  { email: 'gmrony135@gmail.com', label: 'GM Rony' },
+  { email: 'iamronyofficial1@gmail.com', label: 'Rony Official' },
+  { email: 'mailfactorybd@gmail.com', label: 'Mail Factory BD' }
+];
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('gmrony135@gmail.com');
+  const [email, setEmail] = useState('rmarketing154@gmail.com');
   const [password, setPassword] = useState('@RonyX154');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,16 +21,24 @@ export default function LoginScreen() {
     e.preventDefault();
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
     } catch (err: any) {
-      if (err.code === 'auth/user-not-found') {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
         try {
-          await createUserWithEmailAndPassword(auth, email, password);
+          await createUserWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
         } catch (e: any) {
-          Swal.fire('Error', e.message, 'error');
+          Swal.fire({
+            icon: 'error',
+            title: 'Authentication Error',
+            text: e.message || 'Failed to authenticate. Please check your credentials.'
+          });
         }
       } else {
-        Swal.fire('Login Error', err.message, 'error');
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Error',
+          text: err.message || 'Failed to log in.'
+        });
       }
     } finally {
       setLoading(false);
@@ -38,8 +53,12 @@ export default function LoginScreen() {
       showCancelButton: true
     });
     if (resEmail) {
-      await sendPasswordResetEmail(auth, resEmail);
-      Swal.fire('Sent', 'Password reset link sent', 'success');
+      try {
+        await sendPasswordResetEmail(auth, resEmail.trim().toLowerCase());
+        Swal.fire('Sent', 'Password reset link sent to your email', 'success');
+      } catch (err: any) {
+        Swal.fire('Error', err.message, 'error');
+      }
     }
   };
 
@@ -48,7 +67,7 @@ export default function LoginScreen() {
       <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
         
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <img 
             src="https://files.catbox.moe/cqiv5k.png" 
             alt="Logo" 
@@ -57,6 +76,30 @@ export default function LoginScreen() {
           />
           <h2 className="text-2xl font-bold text-white mb-1">Mail Factory Admin</h2>
           <p className="text-slate-400 text-sm">Enterprise Central Management Portal</p>
+        </div>
+
+        {/* Quick Admin Selector */}
+        <div className="mb-5 bg-slate-950/60 p-2.5 rounded-2xl border border-slate-800 space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+            <ShieldCheck size={12} className="text-indigo-400" />
+            <span>Authorized Admin Accounts</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {ADMIN_ACCOUNTS.map((adm) => (
+              <button
+                key={adm.email}
+                type="button"
+                onClick={() => setEmail(adm.email)}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-left transition-all truncate border ${
+                  email.toLowerCase() === adm.email.toLowerCase()
+                    ? 'bg-indigo-600/30 text-indigo-300 border-indigo-500/50 shadow-xs'
+                    : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {adm.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-4">

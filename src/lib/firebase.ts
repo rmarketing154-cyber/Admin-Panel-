@@ -7,7 +7,7 @@ import { getStorage } from "firebase/storage";
 const firebaseConfig = { 
   apiKey: "AIzaSyAbsa0uvBYhkEYoLxuHwD4TQi5GDdAzQpg", 
   authDomain: "exchanger-pro.firebaseapp.com", 
-  databaseURL: "https://exchanger-pro-default-rtdb.firebaseio.com", 
+  databaseURL: (window as any).FIREBASE_DATABASE_URL || "https://exchanger-pro-default-rtdb.firebaseio.com", 
   projectId: "exchanger-pro", 
   storageBucket: "exchanger-pro.firebasestorage.app", 
   messagingSenderId: "889959520630", 
@@ -41,3 +41,10 @@ export const getFirebaseFunctions = () => {
   }
   return functionsInstance;
 };
+
+
+// Expose for debugging
+if (typeof window !== 'undefined') {
+  (window as any).firebaseDb = db;
+  (window as any).firebaseAuth = auth;
+}
