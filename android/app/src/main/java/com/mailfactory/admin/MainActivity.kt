@@ -117,7 +117,7 @@ class MainActivity : AppCompatActivity() {
     private fun proceedAfterAuth() {
         binding.root.visibility = View.VISIBLE
         checkNotificationPermission()
-        checkBatteryOptimizations()
+        // Removed battery optimizations check as requested by the user
         try {
             com.mailfactory.admin.services.RealtimeAlertService.start(this)
         } catch (e: Exception) {
@@ -129,20 +129,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkBatteryOptimizations() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-            val powerManager = getSystemService(POWER_SERVICE) as PowerManager
-            val packageName = packageName
-            if (!powerManager.isIgnoringBatteryOptimizations(packageName)) {
-                try {
-                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:$packageName")
-                    }
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error requesting ignore battery optimizations: ${e.message}")
-                }
-            }
-        }
+        // Disabled to prevent prompt on app launch as requested
     }
 
     override fun onNewIntent(intent: Intent?) {
