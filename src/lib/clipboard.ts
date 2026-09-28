@@ -5,9 +5,12 @@ export const copyToClipboardFallback = (text: string) => {
     textArea.style.position = "fixed"; // avoid scrolling to bottom
     textArea.style.left = "-999999px";
     textArea.style.top = "-999999px";
+    textArea.setAttribute('readonly', '');
+    textArea.style.fontSize = '16px';
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
+    textArea.setSelectionRange(0, 999999);
     try {
       document.execCommand('copy');
     } catch (err) {

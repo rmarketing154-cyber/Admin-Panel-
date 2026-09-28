@@ -200,6 +200,27 @@ class SoundAlertManager {
       console.warn('Failed to play chat alert sound:', e);
     }
   }
+  public unlockAudio() {
+    try {
+      const ctx = this.getContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+    } catch (_) {}
+  }
 }
 
 export const soundAlerts = new SoundAlertManager();
+
+// Automatically unlock Web Audio on first user interaction on iOS Safari
+if (typeof window !== 'undefined') {
+  const handleFirstInteraction = () => {
+    soundAlerts.unlockAudio();
+    window.removeEventListener('touchstart', handleFirstInteraction);
+    window.removeEventListener('touchend', handleFirstInteraction);
+    window.removeEventListener('click', handleFirstInteraction);
+  };
+  window.addEventListener('touchstart', handleFirstInteraction, { passive: true });
+  window.addEventListener('touchend', handleFirstInteraction, { passive: true });
+  window.addEventListener('click', handleFirstInteraction, { passive: true });
+}

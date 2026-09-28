@@ -10,6 +10,49 @@
   }
 }
 
+/* ================= iOS & iPhone Safe Area & Touch Configurations ================= */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
+}
+
+/* Prevent iPhone Safari from auto-zooming and distorting screen when tapping input fields */
+@supports (-webkit-touch-callout: none) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* iOS Smooth Momentum Scrolling */
+* {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Support iPhone Dynamic Island & Notch Safe Areas on Top Header */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header {
+    padding-top: max(0.5rem, env(safe-area-inset-top, 0px)) !important;
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px)) !important;
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px)) !important;
+  }
+
+  aside {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
 /* 3D Icon & Tactile Depth Styling */
 .icon-3d {
   position: relative;
